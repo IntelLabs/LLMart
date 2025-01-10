@@ -1,0 +1,35 @@
+[project]
+name = "llmart"
+version = "2025.01"
+description = "LLMart"
+authors = []
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = "~=3.11"
+
+dependencies = []
+
+[project.optional-dependencies]
+core = [
+    "hydra-core==1.3.2",
+    "hydra-colorlog==1.2.0",
+    "accelerate==1.1.0",
+    "torch==2.4.1",
+    "transformers[sentencepiece]==4.46.3",
+    "tensorboard==2.18.0",
+    "datasets==3.1.0",
+]
+
+dev = [
+    "pre-commit==3.7.1",
+    "basedpyright==1.12.5",
+    "pytest==8.3.2",
+    "ruff==0.4.8",
+]
+
+[tool.basedpyright]
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "standard"
+deprecateTypingAliases = true
+reportDeprecated = true

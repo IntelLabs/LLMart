@@ -9,9 +9,7 @@ on:
   schedule:
     - cron: '44 15 * * 1'
   pull_request:
-    branches: [ "main", "automation_updates" ]
-  push:
-    branches: ["automation_updates"]
+    branches: [ "main" ]
   workflow_dispatch:
   
 # Declare default permissions as read only.

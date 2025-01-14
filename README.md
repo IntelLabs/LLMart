@@ -2,6 +2,9 @@
   <img src="assets/llmart.png" alt="Large Language Model adversarial robustness toolkit" width="300" />
 
 ## Large Language Model adversarial robustness toolkit
+![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/IntelLabs/LLMart)
+![GitHub License](https://img.shields.io/github/license/IntelLabs/LLMart)
+![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FIntelLabs%2FLLMart%2Frefs%2Fheads%2Fmain%2Fpyproject.toml)
 
 :rocket: [Quick start](#rocket-quick-start) ⏐ :briefcase: [Project Overview](#briefcase-project-overview) ⏐ :robot: [Models](#robot-models) ⏐ :clipboard: [Datasets](#clipboard-datasets) ⏐ :chart_with_downwards_trend: [Optimizers and schedulers](#chart_with_downwards_trend-optimizers-and-schedulers) ⏐ :pencil2: [Citation](#pencil2-citation)
 

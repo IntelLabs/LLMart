@@ -139,7 +139,7 @@ Using AdvBench with **LLM**art requires downloading the two files to disk, after
 ```bash
 curl -O https://raw.githubusercontent.com/llm-attacks/llm-attacks/refs/heads/main/data/advbench/harmful_behaviors.csv
 
-accelerate launch -m llmart model=llama3-8b-instruct data=advbench_behavior data.path=/path/to/harmful_behaviors.csv data.subset=[0] loss=model
+accelerate launch -m llmart model=llama3-8b-instruct data=advbench_behavior data.files=/path/to/harmful_behaviors.csv data.subset=[0] loss=model
 ```
 
 ## :chart_with_downwards_trend: Optimizers and schedulers

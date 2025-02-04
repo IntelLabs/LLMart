@@ -80,6 +80,7 @@ def run_attack(cfg: config.LLMartConf) -> None:
         trust_remote_code=True,
         use_fast=True,
     )
+    tokenizer.chat_template = cfg.model.chat_template or tokenizer.chat_template
     tokenizer.clean_up_tokenization_spaces = False
     tokenizer.pad_token = tokenizer.pad_token or tokenizer.eos_token
     tokenizer = TaggedTokenizer(

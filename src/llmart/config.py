@@ -381,6 +381,7 @@ class PipelineConf:
     device: str | None = "cuda"
     device_map: str | None = None
     torch_dtype: str = "bfloat16"
+    chat_template: str | None = None
 
 
 @dataclass(kw_only=True)
@@ -425,6 +426,15 @@ class GraySwan_Llama3_8BrrConf(PipelineConf):
     revision: str = "d92f951d380d3489fb56b08c296376ea61cebef0"
 
 
+@dataclass(kw_only=True)
+class Deepseek_R1_Distill_Llama_8B(PipelineConf):
+    name: str = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+    revision: str = "24ae87a9c340aa4207dd46509414c019998e0161"
+    chat_template: str | None = (
+        "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% set ns = namespace(is_first=false, is_tool=false, is_output_first=true, system_prompt='') %}{%- for message in messages %}{%- if message['role'] == 'system' %}{% set ns.system_prompt = message['content'] %}{%- endif %}{%- endfor %}{{bos_token}}{{ns.system_prompt}}{%- for message in messages %}{%- if message['role'] == 'user' %}{%- set ns.is_tool = false -%}{{'<｜User｜>' + message['content']}}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is none %}{%- set ns.is_tool = false -%}{%- for tool in message['tool_calls']%}{%- if not ns.is_first %}{{'<｜Assistant｜><｜tool▁calls▁begin｜><｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\n' + '```json' + '\n' + tool['function']['arguments'] + '\n' + '```' + '<｜tool▁call▁end｜>'}}{%- set ns.is_first = true -%}{%- else %}{{'\n' + '<｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\n' + '```json' + '\n' + tool['function']['arguments'] + '\n' + '```' + '<｜tool▁call▁end｜>'}}{{'<｜tool▁calls▁end｜><｜end▁of▁sentence｜>'}}{%- endif %}{%- endfor %}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is not none %}{%- if ns.is_tool %}{{'<｜tool▁outputs▁end｜>' + message['content'] + '<｜end▁of▁sentence｜>'}}{%- set ns.is_tool = false -%}{%- else %}{% set content = message['content'] %}{{'<｜Assistant｜>' + content + '<｜end▁of▁sentence｜>'}}{%- endif %}{%- endif %}{%- if message['role'] == 'tool' %}{%- set ns.is_tool = true -%}{%- if ns.is_output_first %}{{'<｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- set ns.is_output_first = false %}{%- else %}{{'\n<｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- endif %}{%- endif %}{%- endfor -%}{% if ns.is_tool %}{{'<｜tool▁outputs▁end｜>'}}{% endif %}{% if add_generation_prompt and not ns.is_tool %}{{'<｜Assistant｜>'}}{% endif %}"
+    )
+
+
 cs.store(name="custom", group="model", node=PipelineConf)
 cs.store(name="llama3-8b-instruct", group="model", node=Llama3_8B_InstructConf)
 cs.store(name="llama3.1-8b-instruct", group="model", node=Llama3p1_8B_InstructConf)
@@ -433,6 +443,11 @@ cs.store(name="llama3.2-1b-instruct", group="model", node=Llama3p2_1B_InstructCo
 cs.store(name="llama3.2-11b-vision", group="model", node=Llama3p2_11B_VisionConf)
 cs.store(name="llamaguard3-1b", group="model", node=LlamaGuard3_1BConf)
 cs.store(name="llama3-8b-grayswan-rr", group="model", node=GraySwan_Llama3_8BrrConf)
+cs.store(
+    name="deepseek-r1-distill-llama-8b",
+    group="model",
+    node=Deepseek_R1_Distill_Llama_8B,
+)
 
 
 # LLMart

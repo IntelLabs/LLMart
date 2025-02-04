@@ -17,6 +17,11 @@
 
 While it is still under development, the goal of **LLM**art is to support any Hugging Face model and include example scripts for modular implementation of different attack strategies.
 
+🆕 We now offer command-line support for jailbreaking thoughts and responses for DeepSeek-R1 on multi-GPU:
+```bash
+accelerate launch -m llmart model=deepseek-r1-distill-llama-8b data=basic per_device_bs=64 "response.replace_with=`echo -e '\"<think>\nOkay, so I need to tell someone about Saturn.\n</think>\n\nNO WAY JOSE\"'`"
+```
+
 ## :rocket: Quick start
 Developed and tested on Ubuntu 22.04 with `Python 3.11`.
 To run an adversarial attack that induces the following open-ended response from the `meta-llama/Meta-Llama-3-8B-Instruct` model:

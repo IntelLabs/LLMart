@@ -7,11 +7,11 @@ on:
   branch_protection_rule:
 
   schedule:
-    - cron: '44 15 * * 1'
+    - cron: "44 15 * * 1"
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
-  
+
 # Declare default permissions as read only.
 permissions: read-all
 
@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
           ref: main
@@ -40,7 +40,7 @@ jobs:
           publish_results: true
 
       - name: "Upload artifact"
-        uses: actions/upload-artifact@v4.6.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: SARIF file
           path: results.sarif

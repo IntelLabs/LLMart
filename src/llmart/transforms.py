@@ -170,7 +170,7 @@ class MaskCompletion(Transform):
 
 
 class ConversationMapper:
-    """Maps conversations using transforms and tokenizes using apple_chat_template.
+    """Maps conversations using transforms and tokenizes using apply_chat_template.
 
     Args:
         tokenizer: Tokenizer instance

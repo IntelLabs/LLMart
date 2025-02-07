@@ -7,7 +7,7 @@
 from .optim import GreedyCoordinateGradient, Coordinate
 from .tokenizer import TaggedTokenizer
 from .model import AdversarialAttack
-from .transforms import ConversationMapper, AttackPrompt, MaskCompletion
+from .transforms import ConversationMapper, AttackPrompt, MaskCompletion, Transform
 from .losses import CausalLMLoss, ranking_loss
 from .data import microbatch, gather_batch_across_processes
 from .pipelines import (
@@ -25,6 +25,7 @@ __all__ = [
     "AttackPrompt",
     "MaskCompletion",
     "ConversationMapper",
+    "Transform",
     "CausalLMLoss",
     "ranking_loss",
     "microbatch",

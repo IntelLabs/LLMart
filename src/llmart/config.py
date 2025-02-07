@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from warnings import warn
 from dataclasses import dataclass, asdict, field
 from hydra.core.config_store import ConfigStore
 from hydra.types import RunMode
@@ -126,6 +127,7 @@ cs.store(name="custom", group="attack", node=AttackConf)
 cs.store(name="suffix", group="attack", node=SuffixAttackConf)
 cs.store(name="prefix", group="attack", node=PrefixAttackConf)
 cs.store(name="replwith", group="attack", node=ReplWithAttackConf)
+cs.store(name="none", group="attack", node=NoAttackConf)
 
 
 # Data
@@ -133,73 +135,48 @@ cs.store(name="replwith", group="attack", node=ReplWithAttackConf)
 class DataConf:
     path: str = MISSING
     files: str | None = None
+    trust_remote_code: bool = True
 
     shuffle: bool = False
-    n_train: int = MISSING
-    n_val: int = 5
-    n_test: int = 5
-    n_minitrain: int = 5
+    n_train: int = 0
+    n_val: int = 0
+    n_test: int = 0
+    n_minitrain: int | None = None
     subset: list[int] | None = None
+    split_batches: bool | None = None
 
 
 @dataclass(kw_only=True)
 class BasicDataConf(DataConf):
     path: str = "basic"
 
-    # 1 sample total
-    n_train: int = 1
-    n_val: int = 0
-    n_test: int = 1
-
-    n_minitrain: int = 0
-
 
 @dataclass(kw_only=True)
-class QuestionsDataConf(DataConf):
-    path: str = "questions"
-
-    # 102 samples total
-    n_train: int = 80
-    n_val: int = 4
-    n_test: int = 1
-    n_minitrain: int = 4
-
-
-@dataclass(kw_only=True)
-class InstructionsDataConf(DataConf):
-    path: str = "instructions"
-
-    # 89 samples total
-    n_train: int = 80
-    n_val: int = 4
-    n_test: int = 1
-    n_minitrain: int = 4
-
-
-@dataclass(kw_only=True)
-class AdvBenchBehavior(BasicDataConf):
+class AdvBenchBehavior(DataConf):
     path: str = "advbench_behavior"
+    files: str | None = (
+        "https://raw.githubusercontent.com/llm-attacks/llm-attacks/refs/heads/main/data/advbench/harmful_behaviors.csv"
+    )
 
-    # Force user to specify files and choose a subset
-    files: str | None = MISSING
-    subset: list[int] | None = MISSING
+    # Default to first sample
+    subset: list[int] | None = field(default_factory=lambda: [0])
 
 
 @dataclass(kw_only=True)
-class AdvBenchJudge(BasicDataConf):
+class AdvBenchJudge(DataConf):
     path: str = "advbench_judge"
+    files: str | None = (
+        "https://raw.githubusercontent.com/llm-attacks/llm-attacks/refs/heads/main/data/advbench/harmful_strings.csv"
+    )
 
-    # Force user to specify files and choose a subset
-    files: str | None = MISSING
-    subset: list[int] | None = MISSING
+    # Default to first sample
+    subset: list[int] | None = field(default_factory=lambda: [0])
 
 
 cs.store(name="custom", group="data", node=DataConf)
 cs.store(name="basic", group="data", node=BasicDataConf)
 cs.store(name="advbench_behavior", group="data", node=AdvBenchBehavior)
 cs.store(name="advbench_judge", group="data", node=AdvBenchJudge)
-cs.store(name="questions", group="data", node=QuestionsDataConf)
-cs.store(name="instructions", group="data", node=InstructionsDataConf)
 
 
 # Losses
@@ -459,7 +436,7 @@ class LLMartConf(CoreConf):
             {"loss": "model"},
             {"attack": "suffix"},
             {"scheduler": "linear"},
-            {"data": MISSING},
+            {"data": "advbench_behavior"},
             {"model": MISSING},
             {"override hydra/job_logging": "colorlog"},
             {"override hydra/hydra_logging": "colorlog"},
@@ -468,8 +445,8 @@ class LLMartConf(CoreConf):
     )
 
     steps: int = 500
+    early_stop: bool = True
     val_every: int = 50
-    test_every: int = 50
     save_every: int = 50
 
     model: PipelineConf
@@ -485,6 +462,7 @@ class LLMartConf(CoreConf):
     per_device_bs: int = 1
     bs: int = 1
     with_replacement: bool = True
+    use_kv_cache: bool = False
 
     def __post_init__(self):
         if self.bs > self.per_device_bs:
@@ -494,7 +472,16 @@ class LLMartConf(CoreConf):
         elif self.bs < self.per_device_bs:
             assert (
                 (self.per_device_bs % self.bs) == 0
-            ), "Batch size ({self.bs}) must divide hardware (micro) batch size ({self.per_device_bs})!"
+            ), f"Batch size ({self.bs}) must divide hardware (micro) batch size ({self.per_device_bs})!"
+        if (
+            self.attack.suffix is None
+            and self.attack.prefix is None
+            and self.attack.repl is None
+            and self.attack.pattern is None
+        ):
+            if self.steps != 0:
+                warn("Setting steps to 0 because attack is none!")
+            self.steps = 0
 
 
 cs.store(name="llmart", node=LLMartConf)

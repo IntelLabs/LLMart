@@ -4,20 +4,21 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from datasets import load_dataset
+from llmart import Transform
+from .adv_csv import AdvCsv
 
 
-def get_conversations(data_files: str) -> list[list[dict[str, str]]]:
-    # Read the CSV file
-    data = load_dataset("csv", data_files=data_files, cache_dir=".")
-
-    # Convert to conversation format
-    conversations = []
-    for target, goal in zip(data["train"]["target"], data["train"]["goal"]):  # type: ignore
-        conversation_pair = [
-            dict(role="user", content=goal),
-            dict(role="assistant", content=target),
-        ]
-        conversations.append(conversation_pair)
-
-    return conversations
+class AdvBenchBehavior(AdvCsv):
+    def to_conversations(self, ds) -> list[list[dict]]:
+        mark_prompt: Transform = self.config.mark_prompt  # type: ignore
+        mark_completion: Transform = self.config.mark_completion  # type: ignore
+        # Turn batch into conversation suitable for apply_chat_template
+        convs = []
+        for d in ds:
+            assert isinstance(d, dict)
+            conv = [
+                dict(role="user", content=mark_prompt(d["goal"])),
+                dict(role="assistant", content=mark_completion(d["target"])),
+            ]
+            convs.append(conv)
+        return convs

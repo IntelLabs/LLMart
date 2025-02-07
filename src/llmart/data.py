@@ -4,13 +4,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import logging
+import torch
+import itertools
 from typing import Any
 from collections import defaultdict
 from collections.abc import Generator, MutableMapping
 from accelerate.utils import gather, pad_across_processes
 from importlib import import_module
-from datasets import load_dataset as load_hf_dataset, DatasetDict, Dataset
+from datasets import load_dataset, Dataset, DatasetDict
 
 from .config import DataConf
 
@@ -82,29 +83,10 @@ def gather_batch_across_processes(
     return global_inputs
 
 
-def load_dataset(path: str, **kwargs) -> DatasetDict:
-    """Loads a dataset from local module or Hugging Face.
-
-    Args:
-        path: Dataset path or identifier.
-        **kwargs: Additional arguments passed to dataset loading function.
-
-    Returns:
-        Loaded dataset as a DatasetDict.
-    """
-
-    try:
-        local_dataset = import_module(f".datasets.{path}", __package__)
-        conversations = local_dataset.get_conversations(**kwargs)
-        return DatasetDict(train=Dataset.from_dict({"conversation": conversations}))
-
-    except ModuleNotFoundError:
-        ds = load_hf_dataset(path, **kwargs)
-        assert isinstance(ds, DatasetDict)
-        return ds
-
-
-def from_config(cfg: DataConf) -> DatasetDict:
+def from_config(
+    cfg: DataConf,
+    **kwargs,
+) -> DatasetDict:
     """Creates dataset splits from configuration.
 
     Args:
@@ -118,14 +100,25 @@ def from_config(cfg: DataConf) -> DatasetDict:
         NotImplementedError: If dataset has predefined val/test splits.
     """
 
-    kwargs = {}
-    if cfg.files is not None:
-        kwargs["data_files"] = cfg.files
-    dd = load_dataset(cfg.path, **kwargs)
+    try:
+        local_dataset = import_module(f".datasets.{cfg.path}", __package__)
+        if local_dataset.__file__ is not None:
+            cfg.path = local_dataset.__file__
+    except ModuleNotFoundError:
+        pass  # ignore issues importing local dataset and let load_dataset raise them
 
-    train_ds = dd["train"]
-    val_ds = dd.get("val", None)
-    test_ds = dd.get("test", None)
+    dd = load_dataset(
+        cfg.path,
+        data_files=cfg.files,
+        trust_remote_code=cfg.trust_remote_code,
+        **kwargs,
+    )
+    if not isinstance(dd, DatasetDict):
+        raise ValueError(f"Dataset must return a DatasetDict, got: {dd.__class__}")
+    if "input_ids" not in dd["train"].features:
+        raise ValueError(
+            f"Training dataset must have input_ids, has: {dd['train'].features}"
+        )
 
     # Subselect training samples before random splits
     if cfg.subset is not None:
@@ -133,37 +126,107 @@ def from_config(cfg: DataConf) -> DatasetDict:
             raise ValueError(
                 f"{cfg.subset=} is out of bounds for dataset with {len(dd['train'])} training samples"
             )
-        train_ds = dd["train"].select(cfg.subset)
+        dd["train"] = dd["train"].select(cfg.subset)
 
-    if val_ds is None and test_ds is None:
-        # No val/test specified, so sample them from train
-        if (cfg.n_train or 0) + cfg.n_val + cfg.n_test > len(train_ds):
-            val_ds = train_ds.take(cfg.n_val)
-            test_ds = train_ds.take(cfg.n_test)
+    train, minitrain, val, test = _split_dataset(
+        train=dd["train"],
+        val=dd.get("val", None),
+        test=dd.get("test", None),
+        n_train=cfg.n_train,
+        n_minitrain=cfg.n_minitrain,
+        n_val=cfg.n_val,
+        n_test=cfg.n_test,
+        shuffle=cfg.shuffle,
+    )
 
-        else:
-            train_dd = train_ds.train_test_split(
-                train_size=cfg.n_train,
-                test_size=cfg.n_val + cfg.n_test,
-                shuffle=cfg.shuffle,
-            )
-            train_ds = train_dd["train"]
-            val_dd = train_dd["test"].train_test_split(
-                train_size=cfg.n_val,
-                test_size=cfg.n_test,
-                shuffle=cfg.shuffle,
-            )
-            val_ds = val_dd["train"]
-            test_ds = val_dd["test"]
+    # Compress datasets using attention_mask
+    mask_name = "attention_mask"
+    if "response_mask" in train.features:
+        mask_name = "response_mask"
+    train = _compress(train, mask_name=mask_name)
+    minitrain = _compress(minitrain, mask_name=mask_name)
+    val = _compress(val, mask_name=mask_name)
+    test = _compress(test, mask_name=mask_name)
 
-    else:
-        raise NotImplementedError
+    return DatasetDict(train=train, minitrain=minitrain, val=val, test=test)
 
-    # Subsample train
-    minitrain_ds = train_ds.take(min(cfg.n_minitrain, len(train_ds)))
-    if cfg.n_minitrain > len(train_ds):
-        logging.warning(
-            f"{cfg.n_minitrain=} larger than all training data; will take all of it instead"
+
+def _split_dataset(
+    train: Dataset,
+    val: Dataset | None = None,
+    test: Dataset | None = None,
+    n_train: int | None = None,
+    n_minitrain: int | None = None,
+    n_val: int | None = None,
+    n_test: int | None = None,
+    shuffle: bool = False,
+) -> tuple[Dataset, Dataset, Dataset, Dataset]:
+    n_train = n_train if n_train is not None and n_train > 0 else None
+    n_val = n_val if n_val is not None and n_val > 0 else None
+    n_test = n_test if n_test is not None and n_test > 0 else None
+
+    if n_test is None and n_val is None:
+        # If unspecified test, then reuse entire train as test
+        test = test or train
+        n_test = n_test or len(test)
+    elif n_test is None and test is None:
+        # Protect against case when user specified val but no test
+        raise AttributeError(
+            f"n_test should be > 0, is {n_test} or test dataset should be specified"
         )
 
-    return DatasetDict(train=train_ds, minitrain=minitrain_ds, val=val_ds, test=test_ds)
+    # Split train into val and/or test
+    if val is None and test is None:
+        assert n_test is not None
+        dd = train.train_test_split((n_val or 0) + n_test, n_train, shuffle)
+        train = dd["train"]
+        val = dd["test"].take(n_val or 0)
+        test = dd["test"].skip(n_val or 0).take(n_test)
+
+    elif val is None:
+        dd = (
+            DatasetDict(train=train, test=train.take(0))
+            if n_val is None
+            else train.train_test_split(n_val, n_train, shuffle)
+        )
+        train = dd["train"]
+        val = dd["test"]
+
+    elif test is None:
+        dd = train.train_test_split(n_test, n_train, shuffle)
+        train = dd["train"]
+        test = dd["test"]
+    assert test is not None
+
+    # Take from datasets taking care to use entire dataset when unspecified and not
+    # exceed the length of dataset
+    train = train.take(min(n_train or len(train), len(train)))
+    val = val.take(min(n_val or len(val), len(val)))
+    test = test.take(min(n_test or len(test), len(test)))
+
+    # Subsample from train, if specified defaulting to entire training set when None
+    n_minitrain = len(train) if n_minitrain is None else n_minitrain
+    minitrain = train.take(min(n_minitrain, len(train)))
+
+    return train, minitrain, val, test
+
+
+def _compress(ds: Dataset, mask_name: str = "attention_mask"):
+    features = set(ds.features.keys())
+    if mask_name not in features:
+        return ds
+
+    # Find mask that works will all examples
+    mask = ds[mask_name]
+    mask = torch.tensor(mask).any(0)  # find smallest mask
+    mask = mask.flip((0,)).cumsum(0).flip((0,)) > 0  # left fill mask with ones
+    mask = mask.to(torch.int).tolist()
+
+    # Compress all features of example using mask
+    def compress_example(data):
+        for feat in features:
+            data[feat] = list(itertools.compress(data[feat], mask))
+        return data
+
+    ds = ds.map(compress_example)
+    return ds

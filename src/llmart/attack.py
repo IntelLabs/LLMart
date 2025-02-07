@@ -9,6 +9,7 @@ import torch
 import datasets
 import itertools
 import transformers
+from typing import Callable
 from collections import defaultdict, OrderedDict
 from accelerate import Accelerator
 from accelerate.logging import get_logger
@@ -19,10 +20,10 @@ from torch.utils.data import DataLoader, RandomSampler
 import torch.nn.functional as F
 
 from llmart import config, data, optim, transforms, losses, schedulers
-from llmart import TaggedTokenizer, AdversarialAttack, ConversationMapper
+from llmart import TaggedTokenizer, AdversarialAttack, AttackPrompt
 
 
-def run_attack(cfg: config.LLMartConf) -> None:
+def run_attack(cfg: config.LLMartConf) -> dict:
     """Find an attack on a given language model and dataset.
 
     Perform input optimization using the specified configuration to attack
@@ -32,7 +33,7 @@ def run_attack(cfg: config.LLMartConf) -> None:
         cfg: Configuration object containing model, attack, and data parameters.
 
     Returns:
-        None
+        results: Dictionary containing various results and metrics.
     """
 
     # Seed
@@ -44,7 +45,9 @@ def run_attack(cfg: config.LLMartConf) -> None:
         log_with="tensorboard",
         project_dir=cfg.output_dir,
         dataloader_config=DataLoaderConfiguration(
-            split_batches=True if cfg.data.n_train > 1 else False
+            split_batches=cfg.data.split_batches
+            if cfg.data.split_batches is not None
+            else (True if cfg.data.n_train > 1 else False)
         ),
         step_scheduler_with_optimizer=False,
     )
@@ -56,25 +59,13 @@ def run_attack(cfg: config.LLMartConf) -> None:
     log = get_logger(__name__)
     log.info(f"{cfg.output_dir=}")
 
-    # Load demo models
-    pipe = pipeline(
-        task=cfg.model.task,
-        model=cfg.model.name,
-        revision=cfg.model.revision,
-        device=cfg.model.device,
-        device_map=cfg.model.device_map,
-        trust_remote_code=True,
-        torch_dtype=cfg.model.torch_dtype,
-    )
-    model = pipe.model
-    model.requires_grad_(False)
-
     # Create attack and responses dataset transforms
     attack_prompt = transforms.from_config(cfg.attack)
     mask_completion = transforms.from_config(cfg.response)
+    assert isinstance(attack_prompt, AttackPrompt)
 
     # Create adversarial tokenizer
-    tokenizer = pipe.tokenizer or AutoTokenizer.from_pretrained(
+    tokenizer = AutoTokenizer.from_pretrained(
         cfg.model.name,
         revision=cfg.model.revision,
         trust_remote_code=True,
@@ -88,6 +79,72 @@ def run_attack(cfg: config.LLMartConf) -> None:
         tags=attack_prompt.tags + mask_completion.tags,
     )
 
+    # Create data, apply attack transforms to it
+    with accelerator.main_process_first():
+        ds = data.from_config(
+            cfg.data,
+            tokenizer=tokenizer,
+            mark_prompt=attack_prompt,
+            mark_completion=mask_completion,
+        )
+
+    for name in filter(lambda name: len(ds[name]), ds):
+        log.info(f"{name} data:")
+        for i, (input_ids, input_map, attention_mask) in enumerate(
+            zip(
+                ds[name]["input_ids"], ds[name]["input_map"], ds[name]["attention_mask"]
+            )
+        ):
+            input_ids = list(itertools.compress(input_ids, attention_mask))
+            input_map = list(itertools.compress(input_map, attention_mask))
+            log.info(f"{i:4d}: {tokenizer.pretty_decode(input_ids, input_map)}")
+
+    # Load demo models
+    pipe = pipeline(
+        task=cfg.model.task,
+        model=cfg.model.name,
+        revision=cfg.model.revision,
+        device=cfg.model.device,
+        device_map=cfg.model.device_map,
+        trust_remote_code=True,
+        torch_dtype=cfg.model.torch_dtype,
+        tokenizer=tokenizer,
+    )
+    model = pipe.model
+    model.requires_grad_(False)
+
+    # Optimize attack
+    step, attack = 0, None
+    results = dict()
+    if len(attack_prompt.elements) > 0:
+        step, attack, train_results = train(
+            ds, attack_prompt, tokenizer, model, cfg, accelerator, log
+        )
+        results.update(train_results)
+
+    # Evaluate test data
+    test_dl = DataLoader(ds["test"], collate_fn=default_data_collator)  # type: ignore
+    if len(test_dl):
+        log.info(f"== TEST @ {step} ==")
+        outputs = evaluate(test_dl, tokenizer, model, attack, log, max_new_tokens=512)
+        outputs = {f"eval/test_{key}": value for key, value in outputs.items()}
+        results.update(outputs)
+        accelerator.log(outputs, step=step)
+
+    accelerator.end_training()
+
+    return results
+
+
+def train(
+    ds: datasets.DatasetDict,
+    attack_prompt: AttackPrompt,
+    tokenizer: TaggedTokenizer,
+    model: PreTrainedModel,
+    cfg: config.LLMartConf,
+    accelerator: Accelerator,
+    log: logging.Logger | logging.LoggerAdapter,
+) -> tuple[int, AdversarialAttack, dict]:
     # Create adversarial attack and losses from tokenized prompt attack
     attack_inits = tokenizer(
         attack_prompt.elements,
@@ -103,36 +160,9 @@ def run_attack(cfg: config.LLMartConf) -> None:
     )
     log.info(f"{attack=}")
 
-    loss_fn = losses.from_config(cfg.loss)
-    closure_loss_fn = losses.from_config(cfg.closure_loss or cfg.loss)
-
-    # Create data, apply attack transforms to it
-    with accelerator.main_process_first():
-        ds = data.from_config(cfg.data)
-
-        # Turn data into tokens and remove conversation field because we can't collate it
-        if "conversation" in ds["train"].column_names:
-            map_conv = ConversationMapper(
-                tokenizer, attack_prompt, mask_completion, continue_final_message=True
-            )
-            ds = ds.map(
-                lambda x: map_conv(x["conversation"]),
-                batched=True,
-                remove_columns="conversation",
-            )
-        else:
-            raise NotImplementedError("We can only work with conversations right now.")
-
-    for name in filter(lambda name: len(ds[name]), ds):
-        log.info(f"{name} data:")
-        for i, (input_ids, input_map, attention_mask) in enumerate(
-            zip(
-                ds[name]["input_ids"], ds[name]["input_map"], ds[name]["attention_mask"]
-            )
-        ):
-            input_ids = list(itertools.compress(input_ids, attention_mask))
-            input_map = list(itertools.compress(input_map, attention_mask))
-            log.info(f"{i:4d}: {tokenizer.pretty_decode(input_ids, input_map)}")
+    # Return attack if no training planned
+    if cfg.steps <= 0:
+        return 0, attack, dict()
 
     # Dataloaders
     eval_dl = DataLoader(ds["train"], collate_fn=default_data_collator)  # type: ignore
@@ -149,117 +179,37 @@ def run_attack(cfg: config.LLMartConf) -> None:
     )
     minitrain_dl = DataLoader(ds["minitrain"], collate_fn=default_data_collator)  # type: ignore
     val_dl = DataLoader(ds["val"], collate_fn=default_data_collator)  # type: ignore
-    test_dl = DataLoader(ds["test"], collate_fn=default_data_collator)  # type: ignore
 
     # Create optimizer from adversarial attack parameters
+    loss_fn = losses.from_config(cfg.loss)
     optimizer = optim.from_config(
         cfg.optim,
         attack.parameters(),
         ignored_values=tokenizer.bad_token_ids,
         embedding=attack.embedding if cfg.attack.dim == 1 else None,
-        world_size=accelerator.num_processes,
     )
     scheduler = schedulers.from_config(
         cfg.scheduler,
         optimizer,
     )
 
-    def generator():
-        """A generator that accumulates attacks on **a single training example** until
-        a desired batch size, and then computes per-attack losses. No loss is computed
-        for non-reencoding attacks.
-
-        Yields:
-            List of tuples containing attack indices and their losses.
-        """
-
-        assert cfg.bs == 1
-
-        param_losses = []
-        batch = defaultdict(list)
-
-        while True:
-            # Get next attack
-            param_idx = yield param_losses
-
-            # If we have a whole batch, or a partial batch and we're stopping,
-            # then compute per-example losses
-            if (len(batch["param_idx"]) == cfg.per_device_bs) or (
-                param_idx is None and len(batch["param_idx"])
-            ):
-                outputs = model(
-                    input_ids=torch.cat(batch["input_ids"]),
-                    attention_mask=torch.cat(batch["attention_mask"]),
-                    use_cache=False,
-                )
-
-                # Compute per-example loss
-                losses = itertools.starmap(
-                    closure_loss_fn, zip(outputs["logits"], torch.cat(batch["labels"]))
-                )
-                param_losses = list(zip(batch["param_idx"], losses))
-
-                # Next iteration will start reaccumulating a batch
-                batch = defaultdict(list)
-            else:
-                param_losses = []
-
-            # If we're stopping, then yield any remaing losses
-            if param_idx is None:
-                yield param_losses
-                break
-
-            # Otherwise, attack inputs and make sure they reencode..
-            adv_inputs = attack(closure_inputs)
-            if not tokenizer.reencodes(adv_inputs["input_ids"]).all():
-                continue
-
-            # ...and if they do accumulate a batch
-            batch["param_idx"].append(param_idx)
-            batch["input_ids"].append(adv_inputs["input_ids"])
-            batch["attention_mask"].append(adv_inputs["attention_mask"])
-            batch["labels"].append(adv_inputs["labels"])
-
-    def closure():
-        """A function that computes the average loss of an attack applied to
-        **many training examples**. If any sample does not re-encode, then an
-        infinite loss is returned.
-
-        Returns:
-            float: Average loss across the entire attacked training batch
-        """
-
-        loss = 0.0
-        for micro_inputs in data.microbatch(
-            closure_inputs, micro_batch_size=cfg.per_device_bs
-        ):
-            adv_inputs = attack(micro_inputs)
-            if not tokenizer.reencodes(adv_inputs["input_ids"]).all():
-                loss = torch.tensor(torch.inf, device=model.device)
-                break
-            else:
-                outputs = model(
-                    input_ids=adv_inputs["input_ids"],
-                    attention_mask=adv_inputs["attention_mask"],
-                    labels=micro_inputs["labels"],
-                    use_cache=False,
-                )
-                micro_loss = closure_loss_fn(outputs, micro_inputs["labels"])
-                # Accumulate averages across micro-batches
-                # NOTE: Assumes equal distribution of micro-batch across devices
-                loss = loss + micro_loss * len(micro_inputs["labels"])
-
-        # Average across the entire training batch
-        loss = loss / len(closure_inputs["labels"])
-
-        return loss
-
     train_dl, model, optimizer, scheduler, attack = accelerator.prepare(
         train_dl, model, optimizer, scheduler, attack
     )
 
+    # Make closure to pass to optimizer
+    closure, closure_inputs = make_closure(
+        attack,
+        model,
+        losses.from_config(cfg.closure_loss or cfg.loss),
+        is_valid_input=tokenizer.reencodes,
+        num_samples=cfg.bs,
+        batch_size=cfg.per_device_bs,
+        use_kv_cache=cfg.use_kv_cache,
+    )
+
     # For each optimization step
-    step = 0
+    step, results = 0, dict()
     for step, inputs in (
         pbar := tqdm(iterable=enumerate(train_dl), total=len(train_dl), desc="steps")
     ):
@@ -312,15 +262,14 @@ def run_attack(cfg: config.LLMartConf) -> None:
 
             # Log and update progress bar
             scheduler_var_name = getattr(scheduler.scheduler, "var_name", "lr")
-            accelerator.log(
-                {
-                    "attack/loss": loss,
-                    "attack/model_loss": model_loss,
-                    "attack/success_rate": success_rate,
-                    f"attack/{scheduler_var_name}": scheduler.get_last_lr()[0],
-                },
-                step=step,
-            )
+            attack_log = {
+                "attack/loss": loss,
+                "attack/model_loss": model_loss,
+                "attack/success_rate": success_rate,
+                f"attack/{scheduler_var_name}": scheduler.get_last_lr()[0],
+            }
+            results.update(attack_log)
+            accelerator.log(attack_log, step=step)
             postfix = OrderedDict(
                 {
                     "loss": f"{loss:0.4f}",
@@ -337,17 +286,19 @@ def run_attack(cfg: config.LLMartConf) -> None:
             pbar.set_postfix(postfix)
 
             # Exit attack loop if we found a successful attack across all training examples
-            if len(eval_dl) == 1 and torch.allclose(success_rate, torch.tensor(1.0)):
+            if (
+                cfg.early_stop
+                and len(eval_dl) == 1
+                and torch.allclose(success_rate, torch.tensor(1.0))
+            ):
                 # NOTE: We use evaluate because model() can differ from model.generate()
                 outputs = evaluate(eval_dl, tokenizer, model, attack, max_new_tokens=0)
                 if torch.allclose(outputs["attack_success_rate"], torch.tensor(1.0)):
                     break
 
             # Gather data for step and take step
-            closure_inputs = inputs
-            optimizer.step(
-                generator if cfg.bs == 1 and cfg.per_device_bs >= cfg.bs else closure
-            )
+            closure_inputs.update(inputs)
+            optimizer.step(closure)
             scheduler.step(loss)
             step = step + 1
 
@@ -362,11 +313,6 @@ def run_attack(cfg: config.LLMartConf) -> None:
                 outputs = evaluate(val_dl, tokenizer, model, attack, log)
                 outputs = {f"val/{key}": value for key, value in outputs.items()}
                 accelerator.log(outputs, step=step)
-            if len(test_dl) and cfg.test_every and step % cfg.test_every == 0:
-                log.info(f"== TEST @ {step} ==")
-                outputs = evaluate(test_dl, tokenizer, model, attack, log)
-                outputs = {f"test/{key}": value for key, value in outputs.items()}
-                accelerator.log(outputs, step=step)
             if (
                 accelerator.is_main_process
                 and cfg.save_every
@@ -376,19 +322,147 @@ def run_attack(cfg: config.LLMartConf) -> None:
                 torch.save(accelerator.unwrap_model(attack).state_dict(), attack_path)
                 log.info(f"{attack_path=}")
 
-    # Evaluate test data and save attack
-    if len(test_dl):
-        log.info(f"== TEST @ {step} ==")
-        outputs = evaluate(test_dl, tokenizer, model, attack, log, max_new_tokens=512)
-        outputs = {f"eval/test_{key}": value for key, value in outputs.items()}
-        accelerator.log(outputs, step=step)
-
     if accelerator.is_main_process:
         attack_path = f"{cfg.output_dir}/attack_{step}.pt"
         torch.save(accelerator.unwrap_model(attack).state_dict(), attack_path)
         log.info(f"{attack_path=}")
 
-    accelerator.end_training()
+    return step, attack, results
+
+
+def make_closure(
+    attack: torch.nn.Module,
+    model: torch.nn.Module,
+    loss_fn: torch.nn.Module,
+    is_valid_input: Callable[[torch.Tensor], torch.Tensor],
+    num_samples: int = 1,
+    batch_size: int = 1,
+    use_kv_cache: bool = False,
+):
+    """Make a closure/generator suitable for passing to the GCG optimizer.
+
+    Args:
+        attack: An AdversarialAttack to apply to closure inputs
+        model: A PreTrainedModel to turn attacked inputs into logits
+        loss_fn: A nn.Module that turns logits and labels into a loss
+        is_valid_input: A Callable returns whether an input is valid
+        batch_size: How many samples batch together
+        num_samples: Number of sampples in closure inputs
+        use_kv_cache: Whether to use the kv_cache when batched=True
+
+    Returns:
+        A closure/generator and closure inputs to update before passing closure.
+    """
+    inputs = {}
+
+    def generator():
+        """A generator that accumulates attacks on **a single training example** until
+        a desired batch size, and then computes per-attack losses. No loss is computed
+        for non-valid attacks.
+
+        Yields:
+            List of tuples containing attack indices and their losses.
+        """
+
+        param_losses = []
+        batch = defaultdict(list)
+        kv_cache = None
+        kv_cache_len = 0
+
+        while True:
+            # Get next attack
+            param_idx = yield param_losses
+
+            # If we have a whole batch, or a partial batch and we're stopping,
+            # then compute per-example losses
+            if (len(batch["param_idx"]) == batch_size) or (
+                param_idx is None and len(batch["param_idx"])
+            ):
+                batch_input_ids = torch.cat(batch["input_ids"])
+                batch_attention_mask = torch.cat(batch["attention_mask"])
+                batch_kv_cache = kv_cache
+                if batch_kv_cache is not None:
+                    batch_kv_cache = [
+                        tuple(t.expand(len(batch_input_ids), -1, -1, -1) for t in kv)
+                        for kv in batch_kv_cache
+                    ]
+                outputs = model(
+                    input_ids=batch_input_ids,
+                    attention_mask=batch_attention_mask,
+                    past_key_values=batch_kv_cache,
+                )
+
+                # Compute per-example loss
+                losses = itertools.starmap(
+                    loss_fn, zip(outputs["logits"], torch.cat(batch["labels"]))
+                )
+                param_losses = list(zip(batch["param_idx"], losses))
+
+                # Next iteration will start reaccumulating a batch
+                batch = defaultdict(list)
+            else:
+                param_losses = []
+
+            # If we're stopping, then yield any remaing losses
+            if param_idx is None:
+                yield param_losses
+                break
+
+            # Otherwise, attack inputs and make sure they reencode..
+            adv_inputs = attack(inputs)
+            if not is_valid_input(adv_inputs["input_ids"]).all():
+                continue
+
+            # ...compute past key values...
+            if use_kv_cache and kv_cache is None:
+                # NOTE: This assumes a batch size of 1
+                kv_cache_len = adv_inputs["input_map"].nonzero()[0, 1]
+                outputs = model(
+                    input_ids=adv_inputs["input_ids"][:, :kv_cache_len],
+                    attention_mask=adv_inputs["attention_mask"][:, :kv_cache_len],
+                    use_cache=True,
+                )
+                kv_cache = outputs["past_key_values"]
+
+            # ...and if they do accumulate a batch
+            batch["param_idx"].append(param_idx)
+            batch["input_ids"].append(adv_inputs["input_ids"][:, kv_cache_len:])
+            batch["attention_mask"].append(adv_inputs["attention_mask"])
+            batch["labels"].append(adv_inputs["labels"][:, kv_cache_len:])
+
+    def closure():
+        """A function that computes the average loss of an attack applied to
+        **many training examples**. If any sample is not valid, then an
+        infinite loss is returned.
+
+        Returns:
+            float: Average loss across the entire attacked training batch
+        """
+
+        loss = 0.0
+        for micro_inputs in data.microbatch(inputs, micro_batch_size=batch_size):
+            adv_inputs = attack(micro_inputs)
+            if not is_valid_input(adv_inputs["input_ids"]).all():
+                loss = torch.tensor(torch.inf, device=model.device)
+                break
+            else:
+                outputs = model(
+                    input_ids=adv_inputs["input_ids"],
+                    attention_mask=adv_inputs["attention_mask"],
+                    labels=micro_inputs["labels"],
+                    use_cache=False,
+                )
+                micro_loss = loss_fn(outputs, micro_inputs["labels"])
+                # Accumulate averages across micro-batches
+                # NOTE: Assumes equal distribution of micro-batch across devices
+                loss = loss + micro_loss * len(micro_inputs["labels"])
+
+        # Average across the entire training batch
+        loss = loss / len(inputs["labels"])
+
+        return loss
+
+    return (generator if num_samples == 1 else closure), inputs
 
 
 @torch.random.fork_rng(devices=range(torch.cuda.device_count()))
@@ -397,7 +471,7 @@ def evaluate(
     dataloader: DataLoader,
     tokenizer: TaggedTokenizer,
     model: PreTrainedModel,
-    attack: AdversarialAttack,
+    attack: AdversarialAttack | None,
     log: logging.Logger | logging.LoggerAdapter | None = None,
     max_new_tokens: int = 50,
 ) -> ModelOutput:
@@ -429,9 +503,8 @@ def evaluate(
     for i, inputs in enumerate(dataloader):
         assert len(inputs["input_ids"]) == 1
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
-        inputs = attack(inputs)
+        inputs = attack(inputs) if attack else inputs
         input_ids = inputs["input_ids"][0]
-        inputs_embeds = inputs["inputs_embeds"][0]
         attention_mask = inputs["attention_mask"][0]
         response_mask = inputs["response_mask"][0]
 
@@ -441,10 +514,9 @@ def evaluate(
         prompt = tokenizer.decode(prompt_ids)
         log.info(f"{prompt=}") if log else None
 
-        # Deterministically generate a response using inputs_embeds
+        # Deterministically generate a response using prompt_ids
         output = model.generate(
-            inputs=None,
-            inputs_embeds=inputs_embeds[:prompt_end][None],
+            inputs=prompt_ids[None],
             attention_mask=attention_mask[:prompt_end][None],
             do_sample=False,
             temperature=None,

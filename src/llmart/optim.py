@@ -100,6 +100,7 @@ class GreedyCoordinateGradient(Optimizer):
             n_buffers=max(n_buffers, 1),
             ignore_curr_marginals=ignore_curr_marginals,
             world_size=world_size,
+            local_swap_count=torch.tensor(0),
         )
         super().__init__(params, defaults)
 
@@ -134,26 +135,23 @@ class GreedyCoordinateGradient(Optimizer):
                 f"{self.__class__.__name__} only works with 1-hot encoded parameters when embedding is None"
             )
 
-        self._param = self.param_groups[0]["params"][0]
-        self._negative_only = self.param_groups[0]["negative_only"]
-        self._coord_topk = self.param_groups[0]["coord_topk"]
-        self._coord_randk = self.param_groups[0]["coord_randk"]
-        self._global_topk = self.param_groups[0]["global_topk"]
-        self._n_tokens = self.param_groups[0]["n_tokens"]
-        self._n_swaps = self.param_groups[0]["n_swaps"]
-        self._n_buffers = self.param_groups[0]["n_buffers"]
-        self._ignore_curr_marginals = self.param_groups[0]["ignore_curr_marginals"]
-        self._world_size = self.param_groups[0]["world_size"]
+        self._update_hyperparams()
 
         self._ignored_values = ignored_values
         self._embedding = embedding
         self._replacements: list[Coordinate] | None = None
-        self._local_swap_count = torch.tensor(0, device=self._param.device)
 
     def _update_hyperparams(self):
         self._coord_topk = self.param_groups[0]["coord_topk"]
         self._n_tokens = self.param_groups[0]["n_tokens"]
         self._n_swaps = self.param_groups[0]["n_swaps"]
+        self._local_swap_count = self.param_groups[0]["local_swap_count"]
+        self._param = self.param_groups[0]["params"][0]
+        self._negative_only = self.param_groups[0]["negative_only"]
+        self._coord_randk = self.param_groups[0]["coord_randk"]
+        self._global_topk = self.param_groups[0]["global_topk"]
+        self._n_buffers = self.param_groups[0]["n_buffers"]
+        self._ignore_curr_marginals = self.param_groups[0]["ignore_curr_marginals"]
 
     @property
     def coordinate(self) -> Coordinate:

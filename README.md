@@ -10,17 +10,22 @@
 
 </div>
 
-## :pushpin: What is **LLM**art?
+## 🆕 Latest updates
+❗Release 2025.02 brings significant speed-ups to the core library, with zero user involvement.\
+We additionally recommend using the command line argument `per_device_bs` with a value as large as possible on GPUs with at least 48GB to take the most advantage of further speed-ups.
+
+❗We now offer command-line support for jailbreaking thoughts and responses for DeepSeek-R1 on multi-GPU:
+```bash
+accelerate launch -m llmart model=deepseek-r1-distill-llama-8b data=basic per_device_bs=64 "response.replace_with=`echo -e '\"<think>\nOkay, so I need to tell someone about Saturn.\n</think>\n\nNO WAY JOSE\"'`"
+```
+
+❗Check out our new [notebook](examples/basic/basic_dev_workflow.ipynb) containing a detailed step-by-step developer overview of all `llmart` components and how to customize them.
 
 **LLM**art is a toolkit for evaluating LLM robustness through adversarial testing. Built with PyTorch and Hugging Face integrations, **LLM**art enables scalable red teaming attacks with parallelized optimization across multiple devices.
 **LLM**art has configurable attack patterns, support for soft prompt optimization, detailed logging, and is intended both for high-level users that want red team evaluation with off-the-shelf algorithms, as well as research power users that intend to experiment with the implementation details of input-space optimization for LLMs.
 
 While it is still under development, the goal of **LLM**art is to support any Hugging Face model and include example scripts for modular implementation of different attack strategies.
 
-🆕 We now offer command-line support for jailbreaking thoughts and responses for DeepSeek-R1 on multi-GPU:
-```bash
-accelerate launch -m llmart model=deepseek-r1-distill-llama-8b data=basic per_device_bs=64 "response.replace_with=`echo -e '\"<think>\nOkay, so I need to tell someone about Saturn.\n</think>\n\nNO WAY JOSE\"'`"
-```
 
 ## :rocket: Quick start
 Developed and tested on Ubuntu 22.04 with `Python 3.11`.
@@ -41,7 +46,8 @@ pip install -e ".[core,dev]"
 ```
 
 > [!NOTE]
-> We also include a Poetry 2.0 `poetry.lock` file that perfectly reproduces dependencies we use.
+> We include lockfiles that ensure a valid Python environment and recommend using `uv sync --all-extras` to ensure consistent development.\
+> Alternatively, `poetry sync --all-extras` can be used with `poetry >= 2.0`.
 
 Once the environment is installed and `export HUGGINGFACE_TOKEN=...` is set to a token with valid model access, **LLM**art can be run to optimize the suffix with:
 ```bash
@@ -76,6 +82,8 @@ The algorithmic **LLM**art functionality is structured as follows and uses PyTor
    ┣ 📂datasets      # Dataset storage and loading
    ┗ 📂pipelines     # Wrappers for Hugging Face pipelines
 ```
+
+A detailed developer workflow that puts together all components to launch an adversarial attack against an LLM can be found in [examples/basic](examples/basic/).
 
 ## :robot: Models
 While **LLM**art comes with a limited number of models accessible via custom naming schemes (see the `PipelineConf` class in `config.py`), it is designed with Hugging Face hub model compatibility in mind.
@@ -113,39 +121,41 @@ The `basic` dataset is the simplest instantiation that lives at [`datasets/basic
 For example, to modify the natural language prompt and desired open-ended response, the following basic edit is sufficient:
 ```diff
 diff src/llmart/datasets/basic.py
-def get_conversations() -> list[list[dict[str, str]]]:
-    return [
-        [
--           dict(role="user", content="Tell me about the planet Saturn."),
-+           dict(role="user", content="Tell me how to do something not allowed."),
--           dict(role="assistant", content="NO WAY JOSE"),
-+           dict(role="assistant", content="Sure, I'll tell you: first, you"),
-        ],
-    ]
+         # Create conversation data structure and mark parts we care about
+         conv = [
+-            dict(role="user", content=mark_prompt("Tell me about the planet Saturn.")),
+-            dict(role="assistant", content=mark_completion("NO WAY JOSE")),
++            dict(role="user", content=mark_prompt("Tell me how to do something not allowed.")),
++            dict(role="assistant", content=mark_completion("Sure, I'll tell you: first, you")),
+         ]
 ```
 
 Inducing a closed-ended response can be also directly done by typing out the end of turn token. For example, for the Llama 3 family of models this is:
 ```diff
 diff src/llmart/datasets/basic.py
-def get_conversations() -> list[list[dict[str, str]]]:
-    return [
-        [
--           dict(role="user", content="Tell me about the planet Saturn."),
-+           dict(role="user", content="Tell me how to do something not allowed."),
--           dict(role="assistant", content="NO WAY JOSE"),
-+           dict(role="assistant", content="NO WAY JOSE<|eot_id|>"),
-        ],
-    ]
+         # Create conversation data structure and mark parts we care about
+         conv = [
+             dict(role="user", content=mark_prompt("Tell me about the planet Saturn.")),
+-            dict(role="assistant", content=mark_completion("NO WAY JOSE")),
++            dict(role="assistant", content=mark_completion("NO WAY JOSE<|eot_id|>")),
+         ]
 ```
 
 **LLM**art also supports loading the [AdvBench](https://github.com/llm-attacks/llm-attacks) dataset, which comes with pre-defined target responses to ensure consistent benchmarks.
 
-Using AdvBench with **LLM**art requires downloading the two files to disk, after which simply specifying the desired dataset and the subset of samples to attack will run out of the box:
+Using AdvBench with **LLM**art requires specifying the desired subset of samples to attack. By default, the following command will automatically download the .csv file from its [original source](https://raw.githubusercontent.com/llm-attacks/llm-attacks/refs/heads/main/data/advbench/harmful_behaviors.csv) and use it as a dataset:
 ```bash
-curl -O https://raw.githubusercontent.com/llm-attacks/llm-attacks/refs/heads/main/data/advbench/harmful_behaviors.csv
-
-accelerate launch -m llmart model=llama3-8b-instruct data=advbench_behavior data.files=/path/to/harmful_behaviors.csv data.subset=[0] loss=model
+accelerate launch -m llmart model=llama3-8b-instruct data=advbench_behavior data.subset=[0] loss=model
 ```
+
+To train a single adversarial attack on multiple samples, users can specify the exact samples via `data.subset=[0,1]`.
+The above command is also compatible with local modifications of the dataset by including the `dataset.files=/path/to/file.csv` argument.
+
+In the most general case, you can write your own [dataset loading script](https://huggingface.co/docs/datasets/en/dataset_script) and pass it to **LLM**art:
+```bash
+accelerate launch -m llmart model=llama3-8b-instruct loss=model data=custom data.path=/path/to/dataset.py
+```
+Just make sure you conform to the output format in [`datasets/basic.py`](src/llmart/datasets/basic.py).
 
 ## :chart_with_downwards_trend: Optimizers and schedulers
 Discrete optimization for language models [(Lei et al, 2019)](https://proceedings.mlsys.org/paper_files/paper/2019/hash/676638b91bc90529e09b22e58abb01d6-Abstract.html) &ndash; in particular the Greedy Coordinate Gradient (GCG) applied to auto-regressive LLMs [(Zou et al, 2023)](https://arxiv.org/abs/2307.15043) &ndash; is the main focus of [`optim.py`](src/llmart/optim.py).
@@ -175,7 +185,7 @@ If you find this repository useful in your work, please cite:
   author = {Cory Cornelius and Marius Arvinte and Sebastian Szyller and Weilin Xu and Nageen Himayat},
   title = {{LLMart}: {L}arge {L}anguage {M}odel adversarial robutness toolbox},
   url = {http://github.com/IntelLabs/LLMart},
-  version = {2025.01},
+  version = {2025.02},
   year = {2025},
 }
 ```

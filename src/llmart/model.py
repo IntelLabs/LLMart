@@ -7,7 +7,6 @@
 import re
 import torch
 import torch.nn.functional as F
-from copy import deepcopy
 from typing import Any
 from collections.abc import Mapping, MutableMapping
 from collections import OrderedDict
@@ -139,7 +138,13 @@ class AdversarialAttack(torch.nn.Module):
             inputs_embeds to the model.
         """
 
-        inputs = deepcopy(inputs)
+        if not torch.is_grad_enabled() and self.dim == 0:
+            return self._fast_forward(inputs)
+        else:
+            return self._forward(inputs)
+
+    def _forward(self, inputs: MutableMapping[str, Any]) -> Mapping[str, Any]:
+        inputs = {k: v for k, v in inputs.items()}
 
         # Turn input ids into 1-hots or embeddings
         inputs_embeds = self._embed(inputs["input_ids"])
@@ -197,6 +202,57 @@ class AdversarialAttack(torch.nn.Module):
             # Scatter attack into input using index
             input_embeds = input_embeds.scatter(dim=0, index=input_index, src=attack)
             outputs.append(input_embeds)
+
+        outputs = torch.stack(outputs)
+        return outputs
+
+    def _fast_forward(self, inputs: MutableMapping[str, Any]) -> Mapping[str, Any]:
+        inputs = {k: v for k, v in inputs.items()}
+        adv_input_ids = inputs.pop("input_ids")
+
+        # Scatter parameters into inputs using input map
+        for name, attack in self.params.items():
+            # Check if attack exists in inputs
+            name = MASK_FORMAT % name
+            if name not in inputs:
+                continue
+
+            inputs_masks: torch.BoolTensor = inputs[name]  # type: ignore
+            adv_input_ids = self._fast_scatter_attack(
+                attack, inputs_masks, adv_input_ids
+            )
+
+        inputs["input_ids"] = adv_input_ids
+        return inputs
+
+    def _fast_scatter_attack(
+        self,
+        attack: torch.Tensor,
+        inputs_masks: torch.BoolTensor,
+        inputs_ids: torch.Tensor,
+    ) -> torch.Tensor:
+        attack = attack.argmax(-1)
+        outputs = []
+        for input_ids, input_mask in zip(inputs_ids, inputs_masks):
+            # find tokens corresponding to attack using map
+            input_index = torch.where(input_mask)[0]
+
+            # if there is no attack in this input, just skip it
+            if len(input_index) == 0:
+                outputs.append(input_ids)
+                continue
+
+            # tile attack to match repeats
+            attack = attack.tile(len(input_index) // len(attack))
+
+            if len(input_index) != len(attack):
+                raise ValueError(
+                    f"Attack is {len(attack)} tokens but found {len(input_index)} in the index!"
+                )
+
+            # Scatter attack into input using index
+            input_ids = input_ids.scatter(dim=0, index=input_index, src=attack)
+            outputs.append(input_ids)
 
         outputs = torch.stack(outputs)
         return outputs

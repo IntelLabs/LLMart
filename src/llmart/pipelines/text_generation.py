@@ -136,7 +136,7 @@ class AdversarialTextGenerationPipeline(TextGenerationPipeline):
         prompt_text = model_inputs.pop("prompt_text")
 
         prompt_mask = model_inputs["prompt_mask"]
-        inputs_embeds = model_inputs["inputs_embeds"]
+        inputs_embeds = model_inputs.get("inputs_embeds", None)
         attention_mask = model_inputs.get("attention_mask", None)
 
         # Fabricate labels from assistant mask
@@ -146,12 +146,15 @@ class AdversarialTextGenerationPipeline(TextGenerationPipeline):
         labels[~assistant_mask] = -100
 
         # FIXME: Add option to use generate with return_logits=True
-        outputs = self.model(
-            inputs_embeds=inputs_embeds,
-            attention_mask=attention_mask,
-            labels=labels,
-            **forward_kwargs,
+        model_kwargs = dict(
+            attention_mask=attention_mask, labels=labels, **forward_kwargs
         )
+        if inputs_embeds is not None:
+            model_kwargs["inputs_embeds"] = inputs_embeds
+        else:
+            model_kwargs["input_ids"] = input_ids
+
+        outputs = self.model(**model_kwargs)
         logits = outputs["logits"]
         loss = outputs["loss"]
 

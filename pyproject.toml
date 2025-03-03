@@ -22,7 +22,7 @@ core = [
 
 dev = [
     "pre-commit==3.7.1",
-    "basedpyright==1.12.5",
+    "basedpyright==1.28.1",
     "pytest==8.3.2",
     "ruff==0.4.8",
 ]

@@ -1,0 +1,43 @@
+#
+# Copyright (C) 2025 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# This GitHub Actions workflow is named "LLMart Test Runner".
+# It is triggered on push and pull request events to the "main" branches.
+# The workflow consists of a single job named "build" that runs on the latest Ubuntu environment.
+# The job sets an environment variable HUGGINGFACE_TOKEN using a secret.
+# The job performs the following steps:
+# 1. Checks out the repository using the actions/checkout@v4 action.
+# 2. Installs the 'uv' tool and the 'huggingface_hub' Python package, then logs in to Hugging Face using the provided token.
+# 3. Runs the commands specified in the Makefile located in the root directory.
+# 4. Runs the commands specified in the Makefile located in the 'examples/' directory and performs cleanup.
+
+name: LLMart Test Runner
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv, huggingface_hub and login
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        pip install huggingface_hub
+        echo -e "${HUGGINGFACE_TOKEN}\nY\n" | huggingface-cli login
+
+    - name: Run README commands
+      run: make
+
+    - name: Run all examples and cleanup
+      run: make -C examples/

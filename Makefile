@@ -37,10 +37,6 @@ run:
 	. $(VENV_DIR)/bin/activate && \
 	accelerate launch -m llmart $(ARGS)
 
-run:
-	. $(VENV_DIR)/bin/activate && \
-	accelerate launch -m llmart $(ARGS)
-
 clean:
 	rm -rf __pycache__ $(VENV_DIR)
 

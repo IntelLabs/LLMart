@@ -6,6 +6,7 @@
 # type: ignore
 #
 # This Makefile is used to install dependencies for LLMart and run the tests required for release and testing.
+# Usage Info: make run MODEL=<model_name> DEVICE=<device_type> DATA=<data_name> LOSS=<loss_name> STEPS=<num_steps> PER_DEVICE_BS=<batch_size>
 
 PYTHON=python3.11
 VENV_DIR=venv

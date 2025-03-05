@@ -16,7 +16,8 @@ DATA=basic
 LOSS=model
 STEPS=2
 PER_DEVICE_BS=1000
-ARGS=model=$(MODEL) data=$(DATA) loss=$(LOSS) steps=$(STEPS) per_device_bs=$(PER_DEVICE_BS)
+DEVICE=cuda
+ARGS=model=$(MODEL) model.device=$(DEVICE) data=$(DATA) loss=$(LOSS) steps=$(STEPS) per_device_bs=$(PER_DEVICE_BS)
 
 all: install run
 
@@ -31,6 +32,10 @@ create-env:
 install: create-env
 	. $(VENV_DIR)/bin/activate && \
 	$(PKG_MGR) pip install -e ".[core,dev]"
+
+run:
+	. $(VENV_DIR)/bin/activate && \
+	accelerate launch -m llmart $(ARGS)
 
 run:
 	. $(VENV_DIR)/bin/activate && \

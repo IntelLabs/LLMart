@@ -112,7 +112,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
     )
     model = pipe.model
     model.requires_grad_(False)
-    max_new_tokens = cfg.max_new_tokens
+    
     # Optimize attack
     step, attack = 0, None
     results = dict()
@@ -126,7 +126,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
     test_dl = DataLoader(ds["test"], collate_fn=default_data_collator)  # type: ignore
     if len(test_dl):
         log.info(f"== TEST @ {step} ==")
-        outputs = evaluate(test_dl, tokenizer, model, attack, log, max_new_tokens)
+        outputs = evaluate(test_dl, tokenizer, model, attack, log, cfg.max_new_tokens)
         outputs = {f"eval/test_{key}": value for key, value in outputs.items()}
         results.update(outputs)
         accelerator.log(outputs, step=step)

@@ -112,7 +112,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
     )
     model = pipe.model
     model.requires_grad_(False)
-    
+
     # Optimize attack
     step, attack = 0, None
     results = dict()

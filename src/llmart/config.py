@@ -449,7 +449,8 @@ class LLMartConf(CoreConf):
     val_every: int = 50
     save_every: int = 50
     bad_string_list: list[str] = field(default_factory=list)
-    max_new_tokens:int = 512
+    max_new_tokens: int = 512
+    keep_best_attack: bool = False
     model: PipelineConf
     attack: AttackConf
     response: ResponseConf = field(default_factory=ResponseConf)

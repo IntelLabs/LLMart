@@ -211,11 +211,16 @@ def train(
 
     # For each optimization step
     step, results = 0, dict()
+    best_loss = float('inf')
+    best_attack_data = None
+
     for step, inputs in (
         pbar := tqdm(iterable=enumerate(train_dl), total=len(train_dl), desc="steps")
     ):
         optimizer.zero_grad()
 
+        attack_param = attack.module.param if hasattr(attack, 'module') else attack.param
+        attack_data = attack_param.data
         model_loss, loss, attack_success, attack_count = 0.0, 0.0, 0, 0
         for micro_inputs in data.microbatch(inputs, micro_batch_size=cfg.per_device_bs):
             # Get adversarial version of inputs and compute loss using differentiable embedding
@@ -286,6 +291,11 @@ def train(
             postfix["mem"] = f"{torch.cuda.max_memory_allocated()/(1024**2):0.3f}MiB"
             pbar.set_postfix(postfix)
 
+            # Save the best attack token
+            if loss < best_loss:
+                best_loss = loss
+                best_attack_data = attack_data
+
             # Exit attack loop if we found a successful attack across all training examples
             if (
                 cfg.early_stop
@@ -327,6 +337,13 @@ def train(
         attack_path = f"{cfg.output_dir}/attack_{step}.pt"
         torch.save(accelerator.unwrap_model(attack).state_dict(), attack_path)
         log.info(f"{attack_path=}")
+
+    if cfg.keep_best_attack:
+        # Update attack.param with the best attack token
+        if hasattr(attack, 'module'):
+            attack.module.param.data = best_attack_data
+        else:
+            attack.param.data = best_attack_data
 
     return step, attack, results
 

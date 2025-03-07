@@ -46,6 +46,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         self,
         tokenizer: PreTrainedTokenizerFast,
         tags: list[str] | None = None,
+        bad_string_list: list[str] = [],
     ):
         assert isinstance(tokenizer, PreTrainedTokenizerFast)
 
@@ -74,6 +75,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             replace_additional_special_tokens=False,
         )
         self.tags = tags or []
+        self.bad_string_list = bad_string_list
 
         # Detect add_prefix_space
         self.add_prefix_space = (
@@ -440,7 +442,20 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
                 for token in tokens
             ],
         )
-
+                
+        if self.bad_string_list != []:
+            for bad_string in self.bad_string_list:
+                tokens = [s for s in tokens if bad_string not in s]   
+               
+        printable_tokens = torch.tensor(
+                [
+                    token.isprintable()
+                    and token.isascii()
+                    and token not in added_tokens
+                    and len(token.strip()) > 0
+                    for token in tokens
+                ],
+            )
         return torch.where(~printable_tokens)[0]
 
     def pretty_decode(self, sequence: list[int], sequence_map: list[int]) -> str:

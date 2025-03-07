@@ -77,6 +77,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
     tokenizer = TaggedTokenizer(
         tokenizer,  # type: ignore
         tags=attack_prompt.tags + mask_completion.tags,
+        bad_string_list=cfg.bad_string_list
     )
 
     # Create data, apply attack transforms to it

@@ -128,7 +128,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
     test_dl = DataLoader(ds["test"], collate_fn=default_data_collator)  # type: ignore
     if len(test_dl):
         log.info(f"== TEST @ {step} ==")
-        outputs = evaluate(test_dl, tokenizer, model, attack, log, max_new_tokens=512)
+        outputs = evaluate(test_dl, tokenizer, model, attack, log, json_output=True, max_new_tokens=512)
         outputs = {f"eval/test_{key}": value for key, value in outputs.items()}
         results.update(outputs)
         accelerator.log(outputs, step=step)
@@ -475,6 +475,7 @@ def evaluate(
     model: PreTrainedModel,
     attack: AdversarialAttack | None,
     log: logging.Logger | logging.LoggerAdapter | None = None,
+    json_output:  bool = False,
     max_new_tokens: int = 50,
 ) -> ModelOutput:
     """Evaluate attack on a dataset against a language model.
@@ -488,6 +489,7 @@ def evaluate(
         model: Language model to generate continuations
         attack: Attack to apply to prompts
         log: Optional logger for outputting results
+        json_output: Enable for storing result for external benchmarking
         max_new_tokens: Maximum number of new tokens to generate (default: 50)
 
     Returns:
@@ -546,11 +548,14 @@ def evaluate(
         loss = F.cross_entropy(logits, targets)
         attack_success = (logits.argmax(-1) == targets).sum()
         attack_count = (targets != -100).sum()
-        attack_success_rate = attack_success / attack_count
-        if log:    
-            log.info(
+        attack_success_rate = attack_success / attack_count    
+
+        log.info(
                 f"{continuation=} {loss=:0.4f} {attack_success_rate=:0.3f}"
-            )
+        ) if log else None
+
+        # Enable storing of output for external tools
+        if json_output and log:
             utils.add_behavior_to_json(behavior_id=i, generation=continuation,
                                         filename=Path(log.baseFilename).parent.name)
 

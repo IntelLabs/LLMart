@@ -4,12 +4,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import json
 import logging
 import torch
 import datasets
 import itertools
 import transformers
 from typing import Callable
+from pathlib import Path
 from collections import defaultdict, OrderedDict
 from accelerate import Accelerator
 from accelerate.logging import get_logger
@@ -19,7 +21,7 @@ from transformers.generation.utils import ModelOutput
 from torch.utils.data import DataLoader, RandomSampler
 import torch.nn.functional as F
 
-from llmart import config, data, optim, transforms, losses, schedulers
+from llmart import config, data, optim, transforms, losses, schedulers, utils
 from llmart import TaggedTokenizer, AdversarialAttack, AttackPrompt
 
 
@@ -545,10 +547,12 @@ def evaluate(
         attack_success = (logits.argmax(-1) == targets).sum()
         attack_count = (targets != -100).sum()
         attack_success_rate = attack_success / attack_count
-
-        log.info(
-            f"{continuation=} {loss=:0.4f} {attack_success_rate=:0.3f}"
-        ) if log else None
+        if log:    
+            log.info(
+                f"{continuation=} {loss=:0.4f} {attack_success_rate=:0.3f}"
+            )
+            utils.add_behavior_to_json(behavior_id=i, generation=continuation,
+                                        filename=Path(log.baseFilename).parent.name)
 
         # Log prob and rank of targets
         probs = -F.nll_loss(F.softmax(logits, -1), targets, reduction="none")

@@ -4,8 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import json
 import torch
 import functools
+from pathlib import Path
 
 
 def setdiff1d(num_coords: int, candidate_set: torch.Tensor) -> torch.Tensor:
@@ -97,3 +99,39 @@ def early_exit_on_empty(func):
         return func(*args, **kwargs)
 
     return wrapper
+
+def add_behavior_to_json(behavior_id: int, generation: list, filename: str):
+    """
+    Adds behavior outputs to json file used for output benchmark evaluation
+
+    Args:
+        behavior_id: behavior_id will be linked to testcase id in benchmark evaluation
+        generation: final output responses, each response will be added as a seperate dict tied to the same id
+        filename: path to the json file
+
+    Returns:
+        True
+    """
+    file_path = Path(filename)
+    if not file_path.exists():
+        with open(filename, 'w') as file:
+            json.dump({}, file)
+
+    with open(filename, 'r+') as file:
+        try:
+            data = json.load(file)
+        except json.JSONDecodeError:
+            data = dict()
+
+        if behavior_id not in data:
+            data[f"behavior_id_{behavior_id}"] = []
+
+        # Append each generation to the existing list for the behavior ID
+        # One behavior id could have multiple generations
+        for text in generation:
+            data[f"behavior_id_{behavior_id}"].append({"generation": text})
+
+        # Clear the file content and write the updated data
+        file.seek(0)
+        json.dump(data, file, indent=4)
+        file.truncate()

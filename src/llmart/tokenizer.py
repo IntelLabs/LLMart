@@ -442,31 +442,21 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
                 for token in tokens
             ],
         )
-        
-        bad_tokens = torch.where(~printable_tokens)[0]
-        
-        if self.bad_string_list == []: # no bad string list provided.
-            return bad_tokens
-        
-        delimiters = ['.', ',', ' ', '...', '-', '_']        
-        banned_strings = set(self.bad_string_list)
-        
-        for banned_string in self.bad_string_list:
-            for delimiter in delimiters:
-                banned_strings.add(delimiter.join(banned_string))
-                for other_string in self.bad_string_list:
-                    banned_strings.add(banned_string + delimiter + other_string)
-                    banned_strings.add(other_string + delimiter + banned_string)
                 
-        banned_token_ids = []
-        for banned_string in banned_strings:
-            token_ids = self.encode(banned_string, add_special_tokens=False)
-            banned_token_ids.extend(token_ids)
-        
-        banned_token_ids = torch.tensor(list(set(banned_token_ids)))
-        combined_bad_tokens = torch.cat((bad_tokens, banned_token_ids))
-        combined_bad_tokens = torch.tensor(list(set(combined_bad_tokens.tolist())))
-        return combined_bad_tokens
+        if self.bad_string_list != []:
+            for bad_string in self.bad_string_list:
+                tokens = [s for s in tokens if bad_string not in s]   
+               
+        printable_tokens = torch.tensor(
+                [
+                    token.isprintable()
+                    and token.isascii()
+                    and token not in added_tokens
+                    and len(token.strip()) > 0
+                    for token in tokens
+                ],
+            )
+        return torch.where(~printable_tokens)[0]
 
     def pretty_decode(self, sequence: list[int], sequence_map: list[int]) -> str:
         """Decodes tokens with color highlighting based on tag mapping.

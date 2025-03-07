@@ -16,7 +16,9 @@ DATA=basic
 LOSS=model
 STEPS=2
 PER_DEVICE_BS=1000
-ARGS=model=$(MODEL) data=$(DATA) loss=$(LOSS) steps=$(STEPS) per_device_bs=$(PER_DEVICE_BS)
+DEVICE=cuda
+NUM_GPU=4
+ARGS=model=$(MODEL) model.device=$(DEVICE) data=$(DATA) loss=$(LOSS) steps=$(STEPS) per_device_bs=$(PER_DEVICE_BS)
 
 all: install run
 
@@ -33,8 +35,13 @@ install: create-env
 	$(PKG_MGR) pip install -e ".[core,dev]"
 
 run:
-	. $(VENV_DIR)/bin/activate && \
-	accelerate launch -m llmart $(ARGS)
+	@if [ $(DEVICE) = "cuda" ]; then \
+		. $(VENV_DIR)/bin/activate && ts -nfG$(NUM_GPU) accelerate launch -m llmart $(ARGS); \
+	elif [ $(DEVICE) = "cpu" ]; then \
+		. $(VENV_DIR)/bin/activate && accelerate launch -m llmart $(ARGS); \
+	else \
+		echo "Invalid DEVICE option. Please use cuda or cpu. Aborting."; exit 1; \
+	fi
 
 clean:
 	rm -rf __pycache__ $(VENV_DIR)

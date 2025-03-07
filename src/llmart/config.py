@@ -448,8 +448,8 @@ class LLMartConf(CoreConf):
     early_stop: bool = True
     val_every: int = 50
     save_every: int = 50
-    max_new_tokens:int = 512
-    
+    keep_best_attack: str = ""
+
     model: PipelineConf
     attack: AttackConf
     response: ResponseConf = field(default_factory=ResponseConf)

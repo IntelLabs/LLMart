@@ -448,6 +448,7 @@ class LLMartConf(CoreConf):
     early_stop: bool = True
     val_every: int = 50
     save_every: int = 50
+    bad_string_list: list[str] = field(default_factory=list)
 
     model: PipelineConf
     attack: AttackConf

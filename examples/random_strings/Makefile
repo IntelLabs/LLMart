@@ -10,12 +10,12 @@
 PYTHON=python3.11
 VENV_DIR=venv
 
-STRING=$(shell tr -dc 'A-Za-z0-9!#%&'\''()*+,-./:;<=>?@[\]^_{|}~' </dev/urandom | head -c 10; echo)
-SCRIPT=whitebox.py
-MAX_STEPS=2
-LR=0.005
+string=$(shell tr -dc 'A-Za-z0-9!#%&'\''()*+,-./:;<=>?@[\]^_{|}~' </dev/urandom | head -c 10; echo)
+script=whitebox.py
+max_steps=2
+lr=0.005
 
-ARGS=--max_steps $(MAX_STEPS)  --lr $(LR)
+args=--max_steps $(max_steps)  --lr $(lr)
 
 all: install run
 
@@ -28,7 +28,7 @@ install:
 	pip install -e ".[core,dev]";
 
 run:
-	$(VENV_DIR)/bin/$(PYTHON) $(SCRIPT) $(ARGS) "$(STRING)";
+	$(VENV_DIR)/bin/$(PYTHON) $(script) $(args) "$(string)";
 
 clean:
 	rm -rf __pycache__ $(VENV_DIR)

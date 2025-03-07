@@ -10,18 +10,16 @@
 PYTHON=python3.11
 VENV_DIR=venv
 
-SUBSET=2
-STEPS=2
-NUM_GPU=4
-SCRIPT=main.py
-ARGS=--subset $(SUBSET) --steps $(STEPS)
-MODE=$(if $(GPU),gpu,cpu) # MODE is 'gpu' if GPU=1, otherwise 'cpu'
+subset=2
+steps=2
+num_gpu=4
+script=main.py
+args=--subset $(subset) --steps $(steps)
+mode=$(if $(gpu),gpu,cpu) # mode is 'gpu' if GPU=1, otherwise 'cpu'
 
 all: install run
 
-install: $(VENV_DIR)/bin/activate
-
-$(VENV_DIR)/bin/activate:
+install:
 	@if [ ! -d $(VENV_DIR) ]; then \
 		$(PYTHON) -m venv $(VENV_DIR); \
 	fi
@@ -31,10 +29,10 @@ $(VENV_DIR)/bin/activate:
 	pip install -e".[core,dev]"
 
 run:
-	@if [ $(MODE) = "gpu" ]; then \
-		ts -nfG$(NUM_GPU) $(VENV_DIR)/bin/$(PYTHON) $(SCRIPT) $(ARGS); \
-	elif [ $(MODE) = "cpu" ]; then \
-		$(VENV_DIR)/bin/$(PYTHON) $(SCRIPT) $(ARGS); \
+	@if [ $(mode) = "gpu" ]; then \
+		ts -nfG$(num_gpu) $(VENV_DIR)/bin/$(PYTHON) $(script) $(args); \
+	elif [ $(mode) = "cpu" ]; then \
+		$(VENV_DIR)/bin/$(PYTHON) $(script) $(args); \
 	else \
 		echo "Invalid mode. Aborting."; exit 1; \
 	fi

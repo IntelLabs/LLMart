@@ -10,16 +10,16 @@
 PYTHON=python3.11
 VENV_DIR=venv
 
-MAX_STEPS=2
-MAX_OPTIM_TOKENS=32
-LR=0.005
-NUM_GPU=4
-SCRIPT=whitebox.py
+max_steps=2
+max_optim_tokens=32
+lr=0.005
+num_gpu=4
+script=whitebox.py
 
-PROMPT=Who is Harry Potter?
-COMPLETION=Harry Potter is the main protagonist in J.K. Rowling's series of fantasy novels
-ARGS=--max_steps $(MAX_STEPS) --max_optim_tokens $(MAX_OPTIM_TOKENS) --lr $(LR)
-MODE=$(if $(GPU),gpu,cpu) # MODE is 'gpu' if GPU=1, otherwise 'cpu'
+prompt=Who is Harry Potter?
+completion=Harry Potter is the main protagonist in J.K. Rowling's series of fantasy novels
+args=--max_steps $(max_steps) --max_optim_tokens $(max_optim_tokens) --lr $(lr)
+mode=$(if $(gpu),gpu,cpu) # mode is 'gpu' if gpu=1, otherwise 'cpu'
 
 all: install run
 
@@ -35,14 +35,14 @@ install:
 run:
     @if [ "$(findstring use_hard_tokens, $(MAKEFLAGS))" ]; then \
         echo "Using hard tokens"; \
-        ARGS="$(ARGS) --use_hard_tokens"; \
+        args="$(args) --use_hard_tokens"; \
     fi; \
-    if [ $(MODE) = "gpu" ]; then \
-        echo "Running with $(NUM_GPU) GPUs"; \
-        ts -nfG$(NUM_GPU) $(VENV_DIR)/bin/$(PYTHON) $(SCRIPT) "$(PROMPT)" "$(COMPLETION)" $(ARGS); \
-    elif [ $(MODE) = "cpu" ]; then \
+    if [ $(mode) = "gpu" ]; then \
+        echo "Running with $(num_gpu) GPUs"; \
+        ts -nfG$(num_gpu) $(VENV_DIR)/bin/$(PYTHON) $(script) "$(prompt)" "$(completion)" $(args); \
+    elif [ $(mode) = "cpu" ]; then \
         echo "Running with CPU"; \
-        $(VENV_DIR)/bin/$(PYTHON) $(SCRIPT) "$(PROMPT)" "$(COMPLETION)" $(ARGS); \
+        $(VENV_DIR)/bin/$(PYTHON) $(script) "$(prompt)" "$(completion)" $(args); \
     else \
         echo "Invalid mode. Aborting."; exit 1; \
     fi

@@ -9,6 +9,7 @@
 
 PYTHON=python3.11
 VENV_DIR=.venv
+PKG_MGR=uv
 
 num_steps=2
 num_gpu=4
@@ -21,19 +22,19 @@ mode=gpu
 all: install run
 
 install:
-	@if [ ! -d $(VENV_DIR) ]; then \
-		$(PYTHON) -m venv $(VENV_DIR); \
+	@if [ ! -d ../../$(VENV_DIR) ]; then \
+		cd ../.. && $(PKG_MGR) venv $(VENV_DIR); \
 	fi
-	. $(VENV_DIR)/bin/activate && \
-	pip install -r requirements.txt && \
+	. ../../$(VENV_DIR)/bin/activate && \
+	$(PKG_MGR) pip install -r requirements.txt && \
 	cd ../.. && \
-	pip install -e".[core,dev]" && \
-	pip install nltk && \
+	$(PKG_MGR) pip install -e".[core,dev]" && \
+	$(PKG_MGR) pip install nltk && \
 	$(PYTHON) -c "import nltk; nltk.download('punkt')"
 
 run:
 	@if [ $(mode) = "gpu" ]; then \
-		ts -nfG$(num_gpu) $(VENV_DIR)/bin/$(PYTHON) $(script) $(args); \
+		. ../../$(VENV_DIR)/bin/activate && ts -nfG$(num_gpu) $(PYTHON) $(script) $(args); \
 	elif [ $(mode) = "cpu" ]; then \
 		echo "Cannot run in CPU mode. Aborting."; exit 1; \
 	else \
@@ -41,6 +42,6 @@ run:
 	fi
 
 clean:
-	rm -rf __pycache__ $(VENV_DIR)
+	-rm -rf __pycache__ ../../$(VENV_DIR)
 
 .PHONY: all install run clean

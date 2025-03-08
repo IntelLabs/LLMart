@@ -9,6 +9,7 @@
 
 PYTHON=python3.11
 VENV_DIR=venv
+PKG_MGR=uv
 
 max_steps=2
 max_optim_tokens=32
@@ -24,30 +25,28 @@ mode=$(if $(gpu),gpu,cpu) # mode is 'gpu' if gpu=1, otherwise 'cpu'
 all: install run
 
 install:
-    @if [ ! -d $(VENV_DIR) ]; then \
-        $(PYTHON) -m venv $(VENV_DIR); \
-    fi
-    . $(VENV_DIR)/bin/activate && \
-    pip install -r requirements.txt && \
-    cd ../.. && \
-    pip install -e ".[core,dev]"
+	@if [ ! -d ../../$(VENV_DIR) ]; then \
+		cd ../.. && $(PKG_MGR) venv $(VENV_DIR); \
+	fi
+	. ../../$(VENV_DIR)/bin/activate && \
+	$(PKG_MGR) pip install -r requirements.txt \
 
 run:
-    @if [ "$(findstring use_hard_tokens, $(MAKEFLAGS))" ]; then \
+	@if [ "$(findstring use_hard_tokens, $(MAKEFLAGS))" ]; then \
         echo "Using hard tokens"; \
         args="$(args) --use_hard_tokens"; \
     fi; \
     if [ $(mode) = "gpu" ]; then \
         echo "Running with $(num_gpu) GPUs"; \
-        ts -nfG$(num_gpu) $(VENV_DIR)/bin/$(PYTHON) $(script) "$(prompt)" "$(completion)" $(args); \
+        . ../../$(VENV_DIR)/bin/activate && ts -nfG$(num_gpu) $(PYTHON) $(script) "$(prompt)" "$(completion)" $(args); \
     elif [ $(mode) = "cpu" ]; then \
         echo "Running with CPU"; \
-        $(VENV_DIR)/bin/$(PYTHON) $(script) "$(prompt)" "$(completion)" $(args); \
+        . ../../$(VENV_DIR)/bin/activate && $(PYTHON) $(script) "$(prompt)" "$(completion)" $(args); \
     else \
         echo "Invalid mode. Aborting."; exit 1; \
     fi
 
 clean:
-    rm -rf __pycache__ .installed $(VENV_DIR)
+	rm -rf __pycache__ .installed ../../$(VENV_DIR)
 
 .PHONY: all install run clean

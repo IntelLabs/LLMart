@@ -15,7 +15,7 @@ NUM_GPU=4
 all: run
 
 create-env:
-	@if [ ! -d $(VENV_DIR) ]; then \
+	@if [ ! -d ../$(VENV_DIR) ]; then \
 		echo "Creating virtual environment..."; \
 		cd .. && $(PKG_MGR) venv $(VENV_DIR); \
 	else \
@@ -36,6 +36,6 @@ run: install
 	fi
 
 clean:
-	rm -rf __pycache__ $(VENV_DIR)
+	-rm -rf $(patsubst %/,%,$(dir $(CURDIR)))/venv  $(patsubst %/,%,$(dir $(CURDIR)))/__pycache__
 
 .PHONY: all create-env install run clean

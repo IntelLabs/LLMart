@@ -11,33 +11,35 @@ gpu ?= 0
 
 all: run
 
-run: run_basic run_autogcg run_fact_checking run_llmguard run_random_strings run_unlearning
+run: run_autogcg
+
+#run: run_basic run_autogcg run_fact_checking run_llmguard run_random_strings run_unlearning
 
 run_autogcg:
 	make -C autogcg gpu=$(gpu)
-	make -C autogcg clean
+	-make -C autogcg clean
 
 run_basic:
 	make -C basic gpu=$(gpu)
-	make -C basic clean
+	-make -C basic clean
 
 run_fact_checking:
 	make -C fact_checking gpu=$(gpu)
-	make -C fact_checking clean
+	-make -C fact_checking clean
 
 run_llmguard:
 	make -C llmguard gpu=$(gpu)
-	make -C llmguard clean
+	-make -C llmguard clean
 
 run_random_stinrgs:
 	make -C random_stinrgs gpu=$(gpu)
-	make -C random_stinrgs clean
+	-make -C random_stinrgs clean
 
 run_unlearning:
 	make -C unlearning gpu=$(gpu)
-	make -C unlearning clean
+	-make -C unlearning clean
 
 clean:
-	rm -rf __pycache__ $(VENV_DIR)
+	-rm -rf $(patsubst %/,%,$(dir $(CURDIR)))/venv  $(patsubst %/,%,$(dir $(CURDIR)))/__pycache__
 
-.PHONY: all run run_autogcg run_basic run_fact_checking run_llmguard run_random_stinrgs run_unlearning clean
+.PHONY: all run run_autogcg run_basic run_fact_checking run_llmguard run_random_strings run_unlearning clean

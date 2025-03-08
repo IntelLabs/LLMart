@@ -17,20 +17,20 @@ all: run
 create-env:
 	@if [ ! -d $(VENV_DIR) ]; then \
 		echo "Creating virtual environment..."; \
-		$(PKG_MGR) venv $(VENV_DIR); \
+		cd .. && $(PKG_MGR) venv $(VENV_DIR); \
 	else \
 		echo "Virtual environment already exists."; \
 	fi
 
 install: create-env
-	. $(VENV_DIR)/bin/activate && \
-	$(PKG_MGR) pip install -e ".[core,dev]"
+	. ../$(VENV_DIR)/bin/activate && \
+	cd .. && $(PKG_MGR) pip install -e ".[core,dev]"
 
 run: install
-	@if [ $(DEVICE) = "cuda" ]; then \
-		. $(VENV_DIR)/bin/activate && ts -nfG$(NUM_GPU) accelerate launch -m llmart $(ARGS); \
-	elif [ $(DEVICE) = "cpu" ]; then \
-		. $(VENV_DIR)/bin/activate && accelerate launch -m llmart $(ARGS); \
+	@if echo "$(ARGS)" | grep -qE "model\.device=cuda(\s|$$)"; then \
+		cd .. && . $(VENV_DIR)/bin/activate && ts -nfG$(NUM_GPU) accelerate launch -m llmart $(ARGS); \
+	elif echo "$(ARGS)" | grep -qE "model\.device=cpu(\s|$$)"; then \
+		cd .. && . $(VENV_DIR)/bin/activate && accelerate launch -m llmart $(ARGS); \
 	else \
 		echo "Invalid DEVICE option. Please use cuda or cpu. Aborting."; exit 1; \
 	fi

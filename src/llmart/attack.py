@@ -4,12 +4,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import json
 import logging
 import torch
 import datasets
 import itertools
 import transformers
 from typing import Callable
+from pathlib import Path
 from collections import defaultdict, OrderedDict
 from accelerate import Accelerator
 from accelerate.logging import get_logger
@@ -19,7 +21,7 @@ from transformers.generation.utils import ModelOutput
 from torch.utils.data import DataLoader, RandomSampler
 import torch.nn.functional as F
 
-from llmart import config, data, optim, transforms, losses, schedulers
+from llmart import config, data, optim, transforms, losses, schedulers, utils
 from llmart import TaggedTokenizer, AdversarialAttack, AttackPrompt
 
 
@@ -124,9 +126,15 @@ def run_attack(cfg: config.LLMartConf) -> dict:
 
     # Evaluate test data
     test_dl = DataLoader(ds["test"], collate_fn=default_data_collator)  # type: ignore
+    
+    # Enable JSON logging for advbench_dataset; subset applies to advbench_behavior only as of now
+    enable_json = Path(cfg.data.path).stem.lower() == "advbench_behavior"
+    subset = cfg.data.subset if enable_json else [-1]
+
     if len(test_dl):
         log.info(f"== TEST @ {step} ==")
-        outputs = evaluate(test_dl, tokenizer, model, attack, log, max_new_tokens=512)
+        outputs = evaluate(test_dl, tokenizer, model, attack, log, max_new_tokens=512, json_output=enable_json,
+                            data_subset=subset)
         outputs = {f"eval/test_{key}": value for key, value in outputs.items()}
         results.update(outputs)
         accelerator.log(outputs, step=step)
@@ -474,6 +482,8 @@ def evaluate(
     attack: AdversarialAttack | None,
     log: logging.Logger | logging.LoggerAdapter | None = None,
     max_new_tokens: int = 50,
+    json_output:  bool = False,
+    data_subset: list = [-1]
 ) -> ModelOutput:
     """Evaluate attack on a dataset against a language model.
 
@@ -487,6 +497,8 @@ def evaluate(
         attack: Attack to apply to prompts
         log: Optional logger for outputting results
         max_new_tokens: Maximum number of new tokens to generate (default: 50)
+        json_output: Enable for storing result for external benchmarking
+        data_subset: Specific data sample ID list used from the dataset for adversarial attacks
 
     Returns:
         ModelOutput containing evaluation metrics including:
@@ -566,6 +578,14 @@ def evaluate(
         outputs[f"prompt_{i}"] = prompt
         outputs[f"continuation_{i}"] = continuation
 
+        # Export responses to json for external benchmark eval
+        if json_output:
+            # Remove all tags specific to the tokenizer from the output
+            for tag in (tokenizer.added_tokens_encoder.keys()):
+                continuation = tokenizer._remove_tag(str(tag), continuation)
+            response = continuation.split("assistant\n\n")[-1]
+            utils.add_behavior_to_json(behavior_id=data_subset[i], generation=response, filename="output.json")
+        
     outputs["loss"] = torch.stack(outputs["loss"]).mean()
     outputs["attack_success_rate"] = torch.stack(outputs["attack_success_rate"]).mean()
 

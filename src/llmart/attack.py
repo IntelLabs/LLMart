@@ -556,10 +556,10 @@ def evaluate(
         loss = F.cross_entropy(logits, targets)
         attack_success = (logits.argmax(-1) == targets).sum()
         attack_count = (targets != -100).sum()
-        attack_success_rate = attack_success / attack_count    
+        attack_success_rate = attack_success / attack_count
 
         log.info(
-                f"{continuation=} {loss=:0.4f} {attack_success_rate=:0.3f}"
+            f"{continuation=} {loss=:0.4f} {attack_success_rate=:0.3f}"
         ) if log else None
 
         # Log prob and rank of targets

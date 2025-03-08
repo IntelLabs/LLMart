@@ -10,17 +10,9 @@
 PYTHON=python3.11
 VENV_DIR=venv
 PKG_MGR=uv
-
-MODEL=llama3-8b-instruct
-DATA=basic
-LOSS=model
-STEPS=2
-PER_DEVICE_BS=1000
-DEVICE=cuda
 NUM_GPU=4
-ARGS=model=$(MODEL) model.device=$(DEVICE) data=$(DATA) loss=$(LOSS) steps=$(STEPS) per_device_bs=$(PER_DEVICE_BS)
 
-all: install run
+all: run
 
 create-env:
 	@if [ ! -d $(VENV_DIR) ]; then \
@@ -34,7 +26,7 @@ install: create-env
 	. $(VENV_DIR)/bin/activate && \
 	$(PKG_MGR) pip install -e ".[core,dev]"
 
-run:
+run: install
 	@if [ $(DEVICE) = "cuda" ]; then \
 		. $(VENV_DIR)/bin/activate && ts -nfG$(NUM_GPU) accelerate launch -m llmart $(ARGS); \
 	elif [ $(DEVICE) = "cpu" ]; then \

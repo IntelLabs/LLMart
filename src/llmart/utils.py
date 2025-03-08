@@ -100,7 +100,8 @@ def early_exit_on_empty(func):
 
     return wrapper
 
-def add_behavior_to_json(behavior_id: int, generation: list, filename: str):
+
+def add_behavior_to_json(behavior_id: int, generation: list, filename: str) -> bool:
     """
     Adds behavior outputs to json file used for output benchmark evaluation
 
@@ -113,25 +114,25 @@ def add_behavior_to_json(behavior_id: int, generation: list, filename: str):
         True
     """
     file_path = Path(filename)
+    # Create File
     if not file_path.exists():
         with open(filename, 'w') as file:
             json.dump({}, file)
 
     with open(filename, 'r+') as file:
+        # Init/Corruption case handling
         try:
             data = json.load(file)
         except json.JSONDecodeError:
             data = dict()
-
+        # Create empty placeholder
         if behavior_id not in data:
             data[f"behavior_id_{behavior_id}"] = []
-
-        # Append each generation to the existing list for the behavior ID
-        # One behavior id could have multiple generations
-        for text in generation:
-            data[f"behavior_id_{behavior_id}"].append({"generation": text})
+        data[f"behavior_id_{behavior_id}"].append({"generation": generation})
 
         # Clear the file content and write the updated data
         file.seek(0)
         json.dump(data, file, indent=4)
         file.truncate()
+
+        return True

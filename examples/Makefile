@@ -11,7 +11,7 @@ gpu ?= 0
 
 all: run
 
-run: run_basic run_autogcg run_fact_checking run_llmguard run_random_stinrgs run_unlearning
+run: run_basic run_autogcg run_fact_checking run_llmguard run_random_strings run_unlearning
 
 run_autogcg:
 	make -C autogcg gpu=$(gpu)

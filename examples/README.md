@@ -2,6 +2,7 @@
 ## Introduction
 This project utilizes two primary Makefiles to manage and execute examples and custom models with llmart. The main Makefile triggers all llmart examples with predefined arguments, while makefile_commands.mk enables the execution of specific custom models with accelerated launch in either CPU or GPU mode.
 There are multiple sub-Makefiles located in each subfolder within the examples directory, which can be parameterized and invoked directly.
+Note: Run all make commands from llmart home directory (llmart/) to avoid errors.
 
 ## Makefiles Overview
 
@@ -21,27 +22,26 @@ There are multiple sub-Makefiles located in each subfolder within the examples d
 - **Usage**: Utilize these makefiles with custom arguments supplied in the top section for individual execution.
 
 
-## Usage Instructions
+## Usage Instructions - run only from home (llmart/) directory
 
 ### Running All Examples with Makefile with CPU mode  
 ```bash
- make -j{nproc} -C examples/ GPU=0
+ make -j{nproc} -C examples/ -f Makefile GPU=0
 ```
 ### Running All Examples with Makefile with GPU mode
 ```bash
- make -j{nproc} -C examples/ GPU=1
+ make -j{nproc} -C examples/ -f Makefile GPU=1
 ```
 ### Running individual Example Makefiles - autogcg
 ```bash
-make -j{nproc}-C examples/autogcg MODE=cpu SUBSET=2 STEPS=2 GPU=1
+make -j{nproc}-C examples/autogcg -f Makefile MODE=cpu SUBSET=2 STEPS=2 GPU=1
 ```
 ### Running custom commands with makefile_commands.mk with CPU mode
 ```bash
-make -j{nproc} DEVICE=cpu MODEL=llama3-8b-instruct DATA=basic LOSS=model STEPS=2 PER_DEVICE_BS=1000
+make -j{nproc} -C examples/ -f makefile_commands.mk ARGS="model.device=cpu model=llama3-8b-instruct data=advbench_behavior data.subset=[0] loss=model"
 ```
-
 ### Running custom commands with makefile_commands.mk with GPU mode
 ```bash
-make -j{nproc} DEVICE=cuda NUM_GPU=4 MODEL=llama3-8b-instruct DATA=basic LOSS=model STEPS=2 PER_DEVICE_BS=1000
+make -j{nproc} -C examples/ -f makefile_commands.mk NUM_GPU=4 ARGS="model.device=cuda model=llama3-8b-instruct data=advbench_behavior data.subset=[0] loss=model"
 ```
 

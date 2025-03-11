@@ -122,14 +122,16 @@ def attack(
         for mc_step in range(mc_sampling_size):
             # Monte-carlo Optimization Step 1  - Take the input and randomly select a position
             # Find a replacement_index
-            mc_replacement_index = torch.randint(0, adv_inputs["input_ids"].shape[1], (1,)).item()
+            mc_replacement_index = torch.randint(
+                0, adv_inputs["input_ids"].shape[1], (1,)
+            ).item()
 
             # Replacing replacement_index with a random_token_value
             mc_random_token_value = torch.randint(0, tokenizer.vocab_size, (1,)).item()
             # Store them to calculate the lowest from them
             mc_tokens.append(mc_random_token_value)
             mc_replacement_indexes.append(mc_replacement_index)
-            mc_originals.append(inputs["input_ids"][0][mc_replacement_index]) 
+            mc_originals.append(inputs["input_ids"][0][mc_replacement_index])
 
             # Recalculate adv_inputs based on replaced_token
             inputs["input_ids"][0][mc_replacement_index] = mc_random_token_value
@@ -152,7 +154,9 @@ def attack(
         # Step 4 - Selectively backpropogate the min loss obtained from monte carlo sampling
         loss.backward()
         # Step 5 - Restore the original token and feed to optimizer
-        inputs["input_ids"][0][mc_replacement_indexes[min_loss_index]] = mc_originals[min_loss_index]
+        inputs["input_ids"][0][mc_replacement_indexes[min_loss_index]] = mc_originals[
+            min_loss_index
+        ]
 
         # Optimizer
         with torch.no_grad():

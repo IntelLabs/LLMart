@@ -28,6 +28,7 @@ def attack(
     suffix=10,
     n_swaps=512,
     n_tokens=2,
+    mc_batch_size=1,
     num_steps=500,
     per_device_bs=64,
     position_cadence=5,
@@ -108,8 +109,6 @@ def attack(
         use_kv_cache=False,  # NOTE: KV caching is incompatible with optimizable position
     )
 
-    # Monte-carlo Sampling Size
-    mc_sampling_size = 5
     for step in (pbar := tqdm(range(num_steps))):
         optimizer_tokens.zero_grad()
         optimizer_position.zero_grad()
@@ -119,14 +118,14 @@ def attack(
         mc_tokens = []
         mc_replacement_indexes = []
         mc_originals = []
-        for mc_step in range(mc_sampling_size):
-            # Monte-carlo Optimization Step 1  - Take the input and randomly select a position
-            # Find a replacement_index
-            mc_replacement_index = torch.randint(
-                0, adv_inputs["input_ids"].shape[1], (1,)
-            ).item()
 
-            # Replacing replacement_index with a random_token_value
+        # Monte-carlo Optimization Step 1  - Take the input and randomly select a position
+        # Replace one of the tokens in the suffix with a valid random token for each sample in the batch
+        for i in range(mc_batch_size):
+            suffix_idx = torch.where(adv_inputs["suffix_mask"])[-1]
+            mc_replacement_index = suffix_idx[
+                torch.randint(0, suffix_idx.shape[0], (1,))
+            ]
             mc_random_token_value = torch.randint(0, tokenizer.vocab_size, (1,)).item()
             # Store them to calculate the lowest from them
             mc_tokens.append(mc_random_token_value)
@@ -148,6 +147,7 @@ def attack(
             loss = outputs["loss"]
             mc_losses.append(loss)
             pbar.set_postfix({"loss": loss.item()})
+
         # Step 3 - Calculate the lowest loss from the monte carlo sampling
         min_loss_index = min(range(len(mc_losses)), key=lambda i: mc_losses[i].item())
         loss = mc_losses[min_loss_index]

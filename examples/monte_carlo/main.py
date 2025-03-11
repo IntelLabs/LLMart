@@ -132,6 +132,7 @@ def attack(
 
         if step == 0 or (step + 1) % 10 == 0:
             # Deterministically generate a response using the adversarial prompt
+            adv_inputs = attack(inputs)
             prompt_end = adv_inputs["response_mask"].nonzero()[0, -1]
             result = model.generate(
                 inputs=adv_inputs["input_ids"][:, :prompt_end],

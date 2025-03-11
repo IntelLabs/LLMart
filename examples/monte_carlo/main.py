@@ -113,53 +113,33 @@ def attack(
         optimizer_tokens.zero_grad()
         optimizer_position.zero_grad()
 
-        # Apply the latest attack
+        # Perturb the attack variable
+        mc_replacement_index = torch.randint(0, suffix, (1,), device=model.device)
+        mc_random_token_value = wrapped_tokenizer.good_token_ids[
+            torch.randint(0, len(wrapped_tokenizer.good_token_ids), (1,))
+        ].to(model.device)
+        original_param = attack[0].param.data[mc_replacement_index].clone()
+        attack[0].param.data[mc_replacement_index] = torch.nn.functional.one_hot(
+            mc_random_token_value, num_classes=attack[0].param.data.size(1)
+        ).to(attack[0].param.data.dtype)
+
+        # Apply the perturbed attack
         adv_inputs = attack(inputs)
-        mc_tokens = []
-        mc_replacement_indexes = []
-        mc_originals = []
+        outputs = model(
+            inputs_embeds=adv_inputs["inputs_embeds"],
+            labels=adv_inputs["labels"],
+            attention_mask=adv_inputs["attention_mask"],
+        )
+        loss = outputs["loss"]
+        pbar.set_postfix({"loss": loss.item()})
 
-        # Monte-carlo Optimization Step 1  - Take the input and randomly select a position
-        # Replace one of the tokens in the suffix with a valid random token for each sample in the batch
-        for i in range(mc_batch_size):
-            suffix_idx = torch.where(adv_inputs["suffix_mask"])[-1]
-            mc_replacement_index = suffix_idx[
-                torch.randint(0, suffix_idx.shape[0], (1,))
-            ]
-            mc_random_token_value = torch.randint(0, tokenizer.vocab_size, (1,)).item()
-            # Store them to calculate the lowest from them
-            mc_tokens.append(mc_random_token_value)
-            mc_replacement_indexes.append(mc_replacement_index)
-            mc_originals.append(inputs["input_ids"][0][mc_replacement_index])
-
-            # Recalculate adv_inputs based on replaced_token
-            inputs["input_ids"][0][mc_replacement_index] = mc_random_token_value
-            adv_inputs = attack(inputs)
-
-            # Monte-carlo Optimization Step 2 - Forward Pass and Calculate the loss
-            mc_losses = []
-
-            outputs = model(
-                inputs_embeds=adv_inputs["inputs_embeds"],
-                labels=adv_inputs["labels"],
-                attention_mask=adv_inputs["attention_mask"],
-            )
-            loss = outputs["loss"]
-            mc_losses.append(loss)
-            pbar.set_postfix({"loss": loss.item()})
-
-        # Step 3 - Calculate the lowest loss from the monte carlo sampling
-        min_loss_index = min(range(len(mc_losses)), key=lambda i: mc_losses[i].item())
-        loss = mc_losses[min_loss_index]
-        # Step 4 - Selectively backpropogate the min loss obtained from monte carlo sampling
+        # Backprop
         loss.backward()
-        # Step 5 - Restore the original token and feed to optimizer
-        inputs["input_ids"][0][mc_replacement_indexes[min_loss_index]] = mc_originals[
-            min_loss_index
-        ]
 
-        # Optimizer
         with torch.no_grad():
+            # Exclude the perturbed token from swapping at this step
+            attack[0].param.grad.data[mc_replacement_index] = torch.inf
+
             # Update the closure inputs
             closure_inputs.update(inputs)
             # Alternating optimization
@@ -167,6 +147,9 @@ def attack(
                 optimizer_position.step(closure)
             else:
                 optimizer_tokens.step(closure)
+
+            # Restore the masked token
+            attack[0].param.data[mc_replacement_index] = original_param
 
         if step == 0 or (step + 1) % 10 == 0:
             # Deterministically generate a response using the adversarial prompt

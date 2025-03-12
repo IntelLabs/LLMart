@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# type: ignore
-#
-# This Makefile is used to install dependencies for LLMart and run the tests required for release and testing.
 
 PYTHON=python3.11
 VENV_DIR=venv

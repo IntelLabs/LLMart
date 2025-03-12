@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# type: ignore
-#
-# Makefile for fact_checking example
+
 
 PYTHON=python3.11
 VENV_DIR=.venv

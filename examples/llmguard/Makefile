@@ -3,10 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# type: ignore
-#
-# Makefile for llmguard example
-# NOTE - GPUs are required to run this example
 
 PYTHON=python3.11
 VENV_DIR=venv

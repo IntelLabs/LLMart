@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# type: ignore
-#
-# This Makefile is used to run various example projects and clean up temporary files.
 
 gpu ?= 0
 

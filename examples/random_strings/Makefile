@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# type: ignore
-#
-# Makefile for random strings example
 
 PYTHON=python3.11
 VENV_DIR=venv

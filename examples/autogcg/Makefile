@@ -6,15 +6,17 @@
 
 
 PYTHON=python3.11
-VENV_DIR=venv
+VENV_DIR=.venv
 PKG_MGR=uv
 
+time_budget_s=120
 subset=2
 steps=2
-num_gpu=4
+num_seeds=2
+num_gpu=2
 script=main.py
-args=--subset $(subset) --steps $(steps)
-mode=$(if $(gpu),gpu,cpu) # mode is 'gpu' if GPU=1, otherwise 'cpu'
+args=--subset $(subset) --time_budget_s $(time_budget_s) --steps $(steps) --num_seeds $(num_seeds)
+mode=$(if $(gpu), gpu, cpu) # mode is 'gpu' if GPU=1, otherwise 'cpu'
 
 all: install run
 

@@ -60,7 +60,11 @@ def experiment(config: dict) -> None:
 
 
 def main(
-    subset: int, per_device_bs: int = 64, steps: int = 50, num_seeds: int = 10
+    subset: int,
+    time_budget_s: int = 3600 * 2,
+    per_device_bs: int = 64,
+    steps: int = 50,
+    num_seeds: int = 10,
 ) -> None:
     # Define search space
     search_space = {
@@ -84,7 +88,7 @@ def main(
         tune.with_resources(experiment, resources={"gpu": 1}),
         param_space=search_space,
         tune_config=tune.TuneConfig(
-            time_budget_s=int(3600 * 2), num_samples=-1, search_alg=hebo
+            time_budget_s=time_budget_s, num_samples=-1, search_alg=hebo
         ),
         run_config=train.RunConfig(name=f"autogcg_sample{subset}"),
     )

@@ -4,19 +4,19 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-gpu ?= 0
+gpu ?= 1
 
 all: run
 
 run: run_basic run_autogcg run_fact_checking run_llmguard run_random_strings run_unlearning
 
-run_autogcg:
-	make -C autogcg gpu=$(gpu)
-	-make -C autogcg clean
-
 run_basic:
 	make -C basic gpu=$(gpu)
 	-make -C basic clean
+
+run_autogcg:
+	make -C autogcg gpu=$(gpu)
+	-make -C autogcg clean
 
 run_fact_checking:
 	make -C fact_checking gpu=$(gpu)

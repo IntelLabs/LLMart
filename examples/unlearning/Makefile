@@ -5,7 +5,7 @@
 #
 
 PYTHON=python3.11
-VENV_DIR=venv
+VENV_DIR=.venv
 PKG_MGR=uv
 
 max_steps=2

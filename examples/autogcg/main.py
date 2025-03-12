@@ -60,10 +60,7 @@ def experiment(config: dict) -> None:
 
 
 def main(
-    subset: int,
-    per_device_bs: int = 64,
-    steps: int = 50,
-    num_seeds: int = 10
+    subset: int, per_device_bs: int = 64, steps: int = 50, num_seeds: int = 10
 ) -> None:
     # Define search space
     search_space = {

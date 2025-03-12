@@ -24,7 +24,7 @@ Note: Run all make commands from llmart home directory (llmart/) to avoid errors
 
 ## Usage Instructions - run only from home (llmart/) directory
 
-### Running All Examples with Makefile with CPU mode  
+### Running All Examples with Makefile with CPU mode
 ```bash
  make -j{nproc} -C examples/ -f Makefile GPU=0
 ```
@@ -44,4 +44,3 @@ make -j{nproc} -C examples/ -f makefile_commands.mk ARGS="model.device=cpu model
 ```bash
 make -j{nproc} -C examples/ -f makefile_commands.mk NUM_GPU=4 ARGS="model.device=cuda model=llama3-8b-instruct data=advbench_behavior data.subset=[0] loss=model"
 ```
-

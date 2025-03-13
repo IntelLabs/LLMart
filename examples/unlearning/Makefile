@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-include ../preamble.mk
+include ../../preamble.mk
 
 prompt=Who is Harry Potter?
 completion=Harry Potter is the main protagonist in J.K. Rowling's series of fantasy novels

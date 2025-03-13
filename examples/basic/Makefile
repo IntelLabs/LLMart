@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-include ../preamble.mk
+include ../../preamble.mk
 
 num_steps=2
 args=--num_steps $(num_steps)

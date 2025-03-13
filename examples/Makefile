@@ -4,24 +4,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-include preamble.mk
+include ../preamble.mk
 
 EXAMPLE_DIRS := basic autogcg fact_checking llmguard random_strings unlearning
 
-all: install run clean
+all: run
 
-install:
-> cd ..
-> uv venv
-> source .venv/bin/activate
-> uv sync --all-extras
-> cd examples
-
-# Generate a run target that iterates over all examples
+# Run target that iterates over all examples
 run:
-> $(foreach dir,$(EXAMPLE_DIRS),make -C $(dir) &&) true
+> $(foreach dir,$(EXAMPLE_DIRS),$(MAKE) -C $(dir) &&) true
 
-clean:
-> rm -rf .venv
-
-.PHONY: all install run clean
+.PHONY: all run

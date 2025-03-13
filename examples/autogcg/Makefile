@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-include ../preamble.mk
+include ../../preamble.mk
 
 time_budget_s=120
 subset=2

@@ -17,7 +17,7 @@ install:
 > uv sync --all-extras
 > cd examples
 
-# Generate a run target that depends on all run_X targets
+# Generate a run target that iterates over all examples
 run:
 > $(foreach dir,$(EXAMPLE_DIRS),make -C $(dir) &&) true
 

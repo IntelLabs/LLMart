@@ -4,37 +4,24 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-gpu ?= 1
+include preamble.mk
 
-all: run
+EXAMPLE_DIRS := basic autogcg fact_checking llmguard random_strings unlearning
 
-run: run_basic run_autogcg run_fact_checking run_llmguard run_random_strings run_unlearning
+all: install run clean
 
-run_basic:
-	make -C basic gpu=$(gpu)
-	-make -C basic clean
+install:
+> cd ..
+> uv venv
+> source .venv/bin/activate
+> uv sync --all-extras
+> cd examples
 
-run_autogcg:
-	make -C autogcg gpu=$(gpu)
-	-make -C autogcg clean
-
-run_fact_checking:
-	make -C fact_checking gpu=$(gpu)
-	-make -C fact_checking clean
-
-run_llmguard:
-	make -C llmguard gpu=$(gpu)
-	-make -C llmguard clean
-
-run_random_strings:
-	make -C random_strings gpu=$(gpu)
-	-make -C random_strings clean
-
-run_unlearning:
-	make -C unlearning gpu=$(gpu)
-	-make -C unlearning clean
+# Generate a run target that depends on all run_X targets
+run:
+> $(foreach dir,$(EXAMPLE_DIRS),make -C $(dir) &&) true
 
 clean:
-	-rm -rf $(patsubst %/,%,$(dir $(CURDIR)))/venv  $(patsubst %/,%,$(dir $(CURDIR)))/__pycache__
+> rm -rf .venv
 
-.PHONY: all run run_autogcg run_basic run_fact_checking run_llmguard run_random_strings run_unlearning clean
+.PHONY: all install run clean

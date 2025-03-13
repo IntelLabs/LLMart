@@ -17,4 +17,4 @@ all: run
 run:
 > uv run --with-requirements requirements.txt whitebox.py $(args)
 
-.PHONY: all run 
+.PHONY: all run

@@ -4,46 +4,29 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-PYTHON=python3.11
 VENV_DIR=.venv
-PKG_MGR=uv
+
+prompt=Who is Harry Potter?
+completion=Harry Potter is the main protagonist in J.K. Rowling's series of fantasy novels
 
 max_steps=2
 max_optim_tokens=32
 lr=0.005
-num_gpu=4
-script=whitebox.py
-
-prompt=Who is Harry Potter?
-completion=Harry Potter is the main protagonist in J.K. Rowling's series of fantasy novels
 args=--max_steps $(max_steps) --max_optim_tokens $(max_optim_tokens) --lr $(lr)
-mode=$(if $(gpu),gpu,cpu) # mode is 'gpu' if gpu=1, otherwise 'cpu'
 
-all: install run
+all: install run clean
 
 install:
-	@if [ ! -d ../../$(VENV_DIR) ]; then \
-		cd ../.. && $(PKG_MGR) venv $(VENV_DIR); \
-	fi
-	. ../../$(VENV_DIR)/bin/activate && \
-	$(PKG_MGR) pip install -r requirements.txt \
+	cd ../.. && uv venv $(VENV_DIR) && uv sync --all-extras && \
+	. $(VENV_DIR)/bin/activate && \
+	cd examples/unlearning && \
+	uv pip install -r requirements.txt
 
 run:
-	@if [ "$(findstring use_hard_tokens, $(MAKEFLAGS))" ]; then \
-        echo "Using hard tokens"; \
-        args="$(args) --use_hard_tokens"; \
-    fi; \
-    if [ $(mode) = "gpu" ]; then \
-        echo "Running with $(num_gpu) GPUs"; \
-        . ../../$(VENV_DIR)/bin/activate && ts -nfG$(num_gpu) $(PYTHON) $(script) "$(prompt)" "$(completion)" $(args); \
-    elif [ $(mode) = "cpu" ]; then \
-        echo "Running with CPU"; \
-        . ../../$(VENV_DIR)/bin/activate && $(PYTHON) $(script) "$(prompt)" "$(completion)" $(args); \
-    else \
-        echo "Invalid mode. Aborting."; exit 1; \
-    fi
+    . ../../$(VENV_DIR)/bin/activate && \
+    python whitebox.py "$(prompt)" "$(completion)" $(args)
 
 clean:
-	rm -rf __pycache__ .installed ../../$(VENV_DIR)
+	rm -rf __pycache__ ../../$(VENV_DIR)
 
 .PHONY: all install run clean

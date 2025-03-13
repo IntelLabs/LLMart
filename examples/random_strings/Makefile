@@ -14,7 +14,7 @@ args=--max_steps $(max_steps) --lr $(lr)
 
 all: install run clean
 
-install:	
+install:
 	cd ../.. && uv venv $(VENV_DIR) && uv sync --all-extras && \
 	. $(VENV_DIR)/bin/activate && \
 	cd examples/random_strings \

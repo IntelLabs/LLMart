@@ -18,7 +18,7 @@ install:
 	uv pip install nltk && \
 	uv pip install -r requirements.txt && \
 	python -c "import nltk; nltk.download('punkt')"
-	
+
 run:
 	. ../../$(VENV_DIR)/bin/activate && \
 	python claim.py $(args) && \

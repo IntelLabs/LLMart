@@ -15,6 +15,6 @@ args=--max_steps $(max_steps) --lr $(lr)
 all: run
 
 run:
-> uv run --with-requirements requirements.txt whitebox.py $(args) "$(string)"
+> uv run whitebox.py $(args) "$(string)"
 
 .PHONY: all run

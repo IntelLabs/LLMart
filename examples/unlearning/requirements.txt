@@ -1,4 +1,2 @@
 tokenizers==0.19.1
-transformers==4.43.2
---extra-index-url https://download.pytorch.org/whl/cu121
-torch==2.4.0
+transformers==4.48.0

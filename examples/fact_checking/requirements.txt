@@ -1,3 +1,4 @@
 fire==0.7.0
-vllm==0.7.2
+nltk==3.9.1
+vllm==0.8.1
 minicheck[llm] @ git+https://github.com/Liyan06/MiniCheck.git@main

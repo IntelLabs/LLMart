@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import nltk
+nltk.download('punkt_tab')
 import fire  # type: ignore[reportMissingImports]
 import torch
 import os

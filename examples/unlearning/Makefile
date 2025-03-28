@@ -17,6 +17,6 @@ args=--max_steps $(max_steps) --max_optim_tokens $(max_optim_tokens) --lr $(lr)
 all: run
 
 run:
-> uv run --with-requirements requirements.txt whitebox.py "$(prompt)" "$(completion)" $(args)
+> uv run whitebox.py "$(prompt)" "$(completion)" $(args)
 
 .PHONY: all run

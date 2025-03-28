@@ -49,7 +49,7 @@ pip install -e ".[core,dev]"
 > We include lockfiles that ensure a valid Python environment and recommend using `uv sync --all-extras` to ensure consistent development.\
 > Alternatively, `poetry sync --all-extras` can be used with `poetry >= 2.0`.
 
-Once the environment is installed and `export HUGGINGFACE_TOKEN=...` is set to a token with valid model access, **LLM**art can be run to optimize the suffix with:
+Once the environment is installed and `export HF_TOKEN=...` is set to a token with valid model access, **LLM**art can be run to optimize the suffix with:
 ```bash
 accelerate launch -m llmart model=llama3-8b-instruct data=basic loss=model
 ```
@@ -187,7 +187,7 @@ If you find this repository useful in your work, please cite:
   author = {Cory Cornelius and Marius Arvinte and Sebastian Szyller and Weilin Xu and Nageen Himayat},
   title = {{LLMart}: {L}arge {L}anguage {M}odel adversarial robutness toolbox},
   url = {http://github.com/IntelLabs/LLMart},
-  version = {2025.02},
+  version = {2025.03},
   year = {2025},
 }
 ```

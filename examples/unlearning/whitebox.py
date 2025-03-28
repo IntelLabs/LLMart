@@ -7,7 +7,7 @@
 import argparse
 import torch
 from tqdm import trange
-from torch.optim import Adam  # type: ignore[reportPrivateImportUsage]
+from torch.optim import Adam
 from collections.abc import MutableMapping
 from transformers import pipeline, PreTrainedTokenizerBase, Pipeline
 from transformers.pipelines.text_generation import ReturnType

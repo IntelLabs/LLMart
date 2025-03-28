@@ -4,14 +4,13 @@
 
 LLMart uses [Hydra](https://hydra.cc/) for configuration management, which provides a flexible command line interface for specifying configuration options. This document details all available command line arguments organized by functional groups.
 
-Configurations can be specified directly on the command line using dot notation and are applicable to launching the *LLMart* module using `-m llmart`. For example:
+Configurations can be specified directly on the command line (using dot notation for nested configurations) and are applicable to launching the *LLMart* module using `-m llmart`. Lists are specified using brackets and comma separation (careful with extra spaces). For example:
 
 ```bash
-accelerate launch -m llmart model=llama3-8b-instruct data=basic
+accelerate launch -m llmart model=llama3-8b-instruct data=basic steps=567 optim.n_tokens=11 banned_strings=[car,machine]
 ```
 
 You can also compose configurations from pre-defined groups and override specific values as needed.
-
 ## Core Configuration
 
 These parameters control the basic behavior of experiments. Parameters marked as *MISSING* are mandatory.
@@ -31,6 +30,7 @@ These parameters control the basic behavior of experiments. Parameters marked as
 | `steps` | integer | 500 | Number of adversarial optimization steps |
 | `early_stop` | boolean | true | Whether to enable early stopping<br> If `true`, enables early stopping once all forced tokens are rank-1 (guaranteed selection in greedy decoding) |
 | `val_every` | integer | 50 | Validation frequency (in steps) |
+| `max_new_tokens` | int | 512 | The maximum number of tokens to auto-regressively generate when periodically validating the adversarial attack |
 | `save_every` | integer | 50 | Result saving frequency (in steps) |
 | `per_device_bs` | integer | 1 | Per-device batch size<br> Setting this to `-1` will enable `auto` functionality for finding the largest batch size that can fit on the device<br>❗The value `-1` is currently only supported for single-device execution <br>⚠️ This parameter can greatly improve efficiency, but will error out if insufficient VRAM is available |
 | `use_kv_cache` | boolean | false | Whether to use KV cache for efficiency<br>❗ Setting this to `true` is only intended for `len(data.subset)=1`, otherwise it may cause silent errors  |
@@ -62,6 +62,7 @@ Parameters for configuring adversarial token placement and optimization methods.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `banned_strings` | list[string] | empty | Any tokens that are superstrings of any element will be excluded from optimization<br> ⚠️ This could be useful for banning profanities from being optimized, although it is not sufficient to guarantee that the model cannot learn two adjacent tokens that decode to a banned string |
 | `attack.suffix` | integer | 20 | How many adversarial suffix tokens are optimized |
 | `attack.prefix` | integer | 0 | How many adversarial prefix tokens are optimized |
 | `attack.pattern` | string | null | The string that is replaced by `attack.repl` tokens<br> Each occurence of the string pattern will be replaced with the same tokens |

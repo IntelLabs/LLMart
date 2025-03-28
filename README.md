@@ -11,6 +11,10 @@
 </div>
 
 ## 🆕 Latest updates
+❗Release 2025.03 brings a new experimental functionality for letting **LLM**art automatically estimate the maximum usable `per_device_bs`. This can result in speed-ups up to 10x on devices with a sufficient amount of memory! Enable from the command line using `per_device_bs=-1`.
+
+<details>
+<summary>Past updates</summary>
 ❗Release 2025.02 brings significant speed-ups to the core library, with zero user involvement.\
 We additionally recommend using the command line argument `per_device_bs` with a value as large as possible on GPUs with at least 48GB to take the most advantage of further speed-ups.
 
@@ -20,18 +24,16 @@ accelerate launch -m llmart model=deepseek-r1-distill-llama-8b data=basic per_de
 ```
 
 ❗Check out our new [notebook](examples/basic/basic_dev_workflow.ipynb) containing a detailed step-by-step developer overview of all `llmart` components and how to customize them.
+</details>
 
+## :rocket: Quick start
 **LLM**art is a toolkit for evaluating LLM robustness through adversarial testing. Built with PyTorch and Hugging Face integrations, **LLM**art enables scalable red teaming attacks with parallelized optimization across multiple devices.
 **LLM**art has configurable attack patterns, support for soft prompt optimization, detailed logging, and is intended both for high-level users that want red team evaluation with off-the-shelf algorithms, as well as research power users that intend to experiment with the implementation details of input-space optimization for LLMs.
 
-While it is still under development, the goal of **LLM**art is to support any Hugging Face model and include example scripts for modular implementation of different attack strategies.
+While it is still under development, the goal of **LLM**art is to support any Hugging Face model and include example scripts for modular implementation of different attack strategies. **LLM**art is developed and tested on Ubuntu 22.04 with Python 3.11.
 
-
-## :rocket: Quick start
-Developed and tested on Ubuntu 22.04 with `Python 3.11`.
-To run an adversarial attack that induces the following open-ended response from the `meta-llama/Meta-Llama-3-8B-Instruct` model:
-> **User:** Tell me about the planet Saturn. <20-token-optimized-suffix>
->
+Suppose we want to optimize an adversarial attack that forces the following open-ended response from the `meta-llama/Meta-Llama-3-8B-Instruct` model:
+> **User:** Tell me about the planet Saturn. <20-token-optimized-suffix><br>
 > **Response:** NO WAY JOSE
 
 
@@ -49,12 +51,12 @@ pip install -e ".[core,dev]"
 > We include lockfiles that ensure a valid Python environment and recommend using `uv sync --all-extras` to ensure consistent development.\
 > Alternatively, `poetry sync --all-extras` can be used with `poetry >= 2.0`.
 
-Once the environment is installed and `export HF_TOKEN=...` is set to a token with valid model access, **LLM**art can be run to optimize the suffix with:
+Once the environment is installed and `export HF_TOKEN=...` is set to a token with valid model access, **LLM**art can be run to optimize the suffix using:
 ```bash
 accelerate launch -m llmart model=llama3-8b-instruct data=basic loss=model
 ```
 
-This will automatically distribute an attack on the maximum number of detected devices. Results are saved in the `outputs/llmart` folder and can be visualized with `tensorboard` using:
+This will automatically distribute an attack on the maximum number of detected devices. Results are saved in the `outputs/llmart` folder and can be visualized in `tensorboard` using:
 ```bash
 tensorboard --logdir=outputs/llmart
 ```

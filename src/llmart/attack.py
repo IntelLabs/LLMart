@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import copy
 import logging
 import torch
 import datasets
@@ -211,15 +212,13 @@ def train(
 
     # For each optimization step
     step, results = 0, dict()
-    best_loss = float("inf")
-    best_attack_data = (
-        attack.module.param.data if hasattr(attack, "module") else attack.param.data
-    )
+    best_success_rate, best_attack = 0, copy.deepcopy(attack)
 
     for step, inputs in (
         pbar := tqdm(iterable=enumerate(train_dl), total=len(train_dl), desc="steps")
     ):
         optimizer.zero_grad()
+
         model_loss, loss, attack_success, attack_count = 0.0, 0.0, 0, 0
         for micro_inputs in data.microbatch(inputs, micro_batch_size=cfg.per_device_bs):
             # Get adversarial version of inputs and compute loss using differentiable embedding
@@ -290,14 +289,9 @@ def train(
             postfix["mem"] = f"{torch.cuda.max_memory_allocated()/(1024**2):0.3f}MiB"
             pbar.set_postfix(postfix)
 
-            # Save tokens with lowest training loss
-            if cfg.keep_best_attack and loss < best_loss:
-                attack_data = (
-                    attack.module.param.data
-                    if hasattr(attack, "module")
-                    else attack.param.data
-                )
-                best_loss, best_attack_data = loss, attack_data
+            # Save tokens with highest success rate
+            if success_rate > best_success_rate:
+                best_success_rate, best_attack = loss, copy.deepcopy(attack)
 
             # Exit attack loop if we found a successful attack across all training examples
             if (
@@ -341,14 +335,7 @@ def train(
         torch.save(accelerator.unwrap_model(attack).state_dict(), attack_path)
         log.info(f"{attack_path=}")
 
-    # Restore tokens with lowest training loss
-    if cfg.keep_best_attack:
-        if hasattr(attack, "module"):
-            attack.module.param.data = best_attack_data
-        else:
-            attack.param.data = best_attack_data
-
-    return step, attack, results
+    return step, best_attack, results
 
 
 def make_closure(

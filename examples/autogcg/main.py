@@ -59,15 +59,21 @@ def experiment(config: dict) -> None:
     train.report(reports)
 
 
-def main(subset: int):
+def main(
+    subset: int,
+    time_budget_s: int = 3600 * 2,
+    per_device_bs: int = 64,
+    steps: int = 50,
+    num_seeds: int = 10,
+) -> None:
     # Define search space
     search_space = {
         "model": "llama3-8b-instruct",
         "data": "advbench_behavior",
-        "per_device_bs": 64,
+        "per_device_bs": per_device_bs,
         "subset": subset,
-        "steps": 50,
-        "num_seeds": 10,
+        "steps": steps,
+        "num_seeds": num_seeds,
         "optim.n_tokens": tune.randint(lower=1, upper=21),
         "scheduler": "plateau",
         "scheduler.factor": tune.uniform(lower=0.25, upper=0.9),
@@ -82,7 +88,7 @@ def main(subset: int):
         tune.with_resources(experiment, resources={"gpu": 1}),
         param_space=search_space,
         tune_config=tune.TuneConfig(
-            time_budget_s=int(3600 * 2), num_samples=-1, search_alg=hebo
+            time_budget_s=time_budget_s, num_samples=-1, search_alg=hebo
         ),
         run_config=train.RunConfig(name=f"autogcg_sample{subset}"),
     )

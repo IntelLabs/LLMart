@@ -46,6 +46,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         self,
         tokenizer: PreTrainedTokenizerFast,
         tags: list[str] | None = None,
+        banned_strings: list[str] | None = None,
     ):
         assert isinstance(tokenizer, PreTrainedTokenizerFast)
 
@@ -74,6 +75,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             replace_additional_special_tokens=False,
         )
         self.tags = tags or []
+        self.banned_strings = banned_strings or []
 
         # Detect add_prefix_space
         self.add_prefix_space = (
@@ -412,17 +414,18 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             self.convert_tokens_to_string([token])
             for token in self.convert_ids_to_tokens(list(range(self.__vocab_size)))
         ]
-        printable_tokens = torch.tensor(
+        usable_tokens = torch.tensor(
             [
                 token.isprintable()
                 and token.isascii()
                 and token not in added_tokens
                 and len(token.strip()) > 0
+                and not any([s in token for s in self.banned_strings])
                 for token in tokens
             ],
         )
 
-        return torch.where(printable_tokens)[0]
+        return torch.where(usable_tokens)[0]
 
     @cached_property
     def bad_token_ids(self) -> torch.Tensor:
@@ -431,17 +434,18 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             self.convert_tokens_to_string([token])
             for token in self.convert_ids_to_tokens(list(range(self.__vocab_size)))
         ]
-        printable_tokens = torch.tensor(
+        usable_tokens = torch.tensor(
             [
                 token.isprintable()
                 and token.isascii()
                 and token not in added_tokens
                 and len(token.strip()) > 0
+                and not any([s in token for s in self.banned_strings])
                 for token in tokens
             ],
         )
 
-        return torch.where(~printable_tokens)[0]
+        return torch.where(~usable_tokens)[0]
 
     def pretty_decode(self, sequence: list[int], sequence_map: list[int]) -> str:
         """Decodes tokens with color highlighting based on tag mapping.

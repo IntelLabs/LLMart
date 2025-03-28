@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import copy
 import logging
 import torch
 import datasets
@@ -77,6 +78,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
     tokenizer = TaggedTokenizer(
         tokenizer,  # type: ignore
         tags=attack_prompt.tags + mask_completion.tags,
+        banned_strings=cfg.banned_strings,
     )
 
     # Create data, apply attack transforms to it
@@ -126,7 +128,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
     test_dl = DataLoader(ds["test"], collate_fn=default_data_collator)  # type: ignore
     if len(test_dl):
         log.info(f"== TEST @ {step} ==")
-        outputs = evaluate(test_dl, tokenizer, model, attack, log, max_new_tokens=512)
+        outputs = evaluate(test_dl, tokenizer, model, attack, log, cfg.max_new_tokens)
         outputs = {f"eval/test_{key}": value for key, value in outputs.items()}
         results.update(outputs)
         accelerator.log(outputs, step=step)
@@ -210,6 +212,8 @@ def train(
 
     # For each optimization step
     step, results = 0, dict()
+    best_success_rate, best_attack = 0, copy.deepcopy(attack)
+
     for step, inputs in (
         pbar := tqdm(iterable=enumerate(train_dl), total=len(train_dl), desc="steps")
     ):
@@ -285,6 +289,10 @@ def train(
             postfix["mem"] = f"{torch.cuda.max_memory_allocated()/(1024**2):0.3f}MiB"
             pbar.set_postfix(postfix)
 
+            # Save tokens with highest success rate
+            if success_rate > best_success_rate:
+                best_success_rate, best_attack = loss, copy.deepcopy(attack)
+
             # Exit attack loop if we found a successful attack across all training examples
             if (
                 cfg.early_stop
@@ -327,7 +335,7 @@ def train(
         torch.save(accelerator.unwrap_model(attack).state_dict(), attack_path)
         log.info(f"{attack_path=}")
 
-    return step, attack, results
+    return step, best_attack, results
 
 
 def make_closure(

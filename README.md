@@ -59,6 +59,8 @@ This will automatically distribute an attack on the maximum number of detected d
 tensorboard --logdir=outputs/llmart
 ```
 
+In most cases, **LLM**art can be used directly from the command line. A list of all available command line arguments and their description can be found in the [CLI reference](docs/cli-reference.md).
+
 ## :briefcase: Project overview
 The algorithmic **LLM**art functionality is structured as follows and uses PyTorch naming conventions as much as possible:
 ```

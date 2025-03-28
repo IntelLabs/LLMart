@@ -1,9 +1,3 @@
-#
-# Copyright (C) 2025 Intel Corporation
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-
 # Using guidelines from https://tech.davis-hansson.com/p/make/
 SHELL := bash
 .ONESHELL:

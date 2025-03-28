@@ -9,7 +9,6 @@ from dataclasses import dataclass, asdict, field
 from hydra.core.config_store import ConfigStore
 from hydra.types import RunMode
 from omegaconf import MISSING
-from typing import Union
 
 cs = ConfigStore.instance()
 
@@ -460,21 +459,26 @@ class LLMartConf(CoreConf):
     scheduler: SchedulerConf
 
     # sampler + dataloader
-    per_device_bs: Union[int, str] = 1
+    per_device_bs: int | str = 1
     bs: int = 1
     with_replacement: bool = True
     use_kv_cache: bool = False
 
-    def validate_parameters(self):
+    def __post_init__(self):
+        if isinstance(self.per_device_bs, str) and self.per_device_bs != "auto":
+            raise ValueError(
+                f"Hardware batch size ({self.per_device_bs}) must be either a positive integer or 'auto'!"
+            )
 
-        if self.bs > self.per_device_bs:
+        if isinstance(self.per_device_bs, int) and self.bs > self.per_device_bs:
             assert (
                 (self.bs % self.per_device_bs) == 0
             ), f"Hardware (micro) batch size ({self.per_device_bs}) must divide the batch size ({self.bs})!"
-        elif self.bs < self.per_device_bs:
+        elif isinstance(self.per_device_bs, int) and self.bs < self.per_device_bs:
             assert (
                 (self.per_device_bs % self.bs) == 0
             ), f"Batch size ({self.bs}) must divide hardware (micro) batch size ({self.per_device_bs})!"
+
         if (
             self.attack.suffix is None
             and self.attack.prefix is None
@@ -484,5 +488,6 @@ class LLMartConf(CoreConf):
             if self.steps != 0:
                 warn("Setting steps to 0 because attack is none!")
             self.steps = 0
-        
+
+
 cs.store(name="llmart", node=LLMartConf)

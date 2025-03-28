@@ -46,7 +46,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         self,
         tokenizer: PreTrainedTokenizerFast,
         tags: list[str] | None = None,
-        bad_string_list: list[str] = [],
+        banned_strings: list[str] = [],
     ):
         assert isinstance(tokenizer, PreTrainedTokenizerFast)
 
@@ -75,7 +75,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             replace_additional_special_tokens=False,
         )
         self.tags = tags or []
-        self.bad_string_list = bad_string_list
+        self.banned_strings = banned_strings
 
         # Detect add_prefix_space
         self.add_prefix_space = (
@@ -414,17 +414,18 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             self.convert_tokens_to_string([token])
             for token in self.convert_ids_to_tokens(list(range(self.__vocab_size)))
         ]
-        printable_tokens = torch.tensor(
+        usable_tokens = torch.tensor(
             [
                 token.isprintable()
                 and token.isascii()
                 and token not in added_tokens
                 and len(token.strip()) > 0
+                and not any([s in token for s in self.banned_strings])
                 for token in tokens
             ],
         )
 
-        return torch.where(printable_tokens)[0]
+        return torch.where(usable_tokens)[0]
 
     @cached_property
     def bad_token_ids(self) -> torch.Tensor:
@@ -433,30 +434,18 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             self.convert_tokens_to_string([token])
             for token in self.convert_ids_to_tokens(list(range(self.__vocab_size)))
         ]
-        printable_tokens = torch.tensor(
+        usable_tokens = torch.tensor(
             [
                 token.isprintable()
                 and token.isascii()
                 and token not in added_tokens
                 and len(token.strip()) > 0
+                and not any([s in token for s in self.banned_strings])
                 for token in tokens
             ],
         )
-                
-        if self.bad_string_list != []:
-            for bad_string in self.bad_string_list:
-                tokens = [s for s in tokens if bad_string not in s]   
-               
-        printable_tokens = torch.tensor(
-                [
-                    token.isprintable()
-                    and token.isascii()
-                    and token not in added_tokens
-                    and len(token.strip()) > 0
-                    for token in tokens
-                ],
-            )
-        return torch.where(~printable_tokens)[0]
+
+        return torch.where(~usable_tokens)[0]
 
     def pretty_decode(self, sequence: list[int], sequence_map: list[int]) -> str:
         """Decodes tokens with color highlighting based on tag mapping.

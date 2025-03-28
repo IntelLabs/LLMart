@@ -449,7 +449,7 @@ class LLMartConf(CoreConf):
     val_every: int = 50
     save_every: int = 50
     max_new_tokens: int = 512
-    banned_strings: list[str] = field(default_factory=list)
+    banned_strings: list[str] | None = None
 
     model: PipelineConf
     attack: AttackConf

@@ -46,7 +46,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         self,
         tokenizer: PreTrainedTokenizerFast,
         tags: list[str] | None = None,
-        banned_strings: list[str] = [],
+        banned_strings: list[str] | None = None,
     ):
         assert isinstance(tokenizer, PreTrainedTokenizerFast)
 
@@ -75,7 +75,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             replace_additional_special_tokens=False,
         )
         self.tags = tags or []
-        self.banned_strings = banned_strings
+        self.banned_strings = banned_strings or []
 
         # Detect add_prefix_space
         self.add_prefix_space = (

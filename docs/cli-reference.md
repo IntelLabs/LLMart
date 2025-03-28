@@ -32,7 +32,7 @@ These parameters control the basic behavior of experiments. Parameters marked as
 | `early_stop` | boolean | true | Whether to enable early stopping<br> If `true`, enables early stopping once all forced tokens are rank-1 (guaranteed selection in greedy decoding) |
 | `val_every` | integer | 50 | Validation frequency (in steps) |
 | `save_every` | integer | 50 | Result saving frequency (in steps) |
-| `per_device_bs` | integer | 1 | Per-device batch size<br>⚠️ This parameter can greatly improve efficiency, but will error out if insufficient VRAM is available |
+| `per_device_bs` | integer | 1 | Per-device batch size<br> Setting this to `-1` will enable `auto` functionality for finding the largest batch size that can fit on the device<br>❗The value `-1` is currently only supported for single-device execution <br>⚠️ This parameter can greatly improve efficiency, but will error out if insufficient VRAM is available |
 | `use_kv_cache` | boolean | false | Whether to use KV cache for efficiency<br>❗ Setting this to `true` is only intended for `len(data.subset)=1`, otherwise it may cause silent errors  |
 
 ## Model Configuration

@@ -20,9 +20,6 @@ from llmart import (
     AttackPrompt,
 )
 from llmart.pipelines.text_generation import Chat
-import nltk  # type: ignore[reportMissingImports]
-
-nltk.download("punkt_tab")
 
 
 def attack(

@@ -477,7 +477,7 @@ wheels = [
 
 [[package]]
 name = "llmart"
-version = "2025.2"
+version = "2025.3"
 source = { editable = "." }
 
 [package.optional-dependencies]

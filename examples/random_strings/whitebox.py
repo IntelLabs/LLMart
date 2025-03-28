@@ -123,16 +123,17 @@ def attack(
 
         pbar.set_postfix(loss=f"{loss:0.4f}")
 
-    # Manually pass inputs_embeds to original generator to double check
+    # Compute adversarial soft token embeddings
+    model_inputs = adv_generator.preprocess(prompt, completion="")  # type: ignore
+    model_inputs = adv_generator.ensure_tensor_on_device(**model_inputs)
+    adv_model_inputs = adv_generator.attack(model_inputs)  # type: ignore
+
+    # Pass text or soft token embeddings to generator
     with torch.inference_mode():
         if use_hard_tokens:
             output: MutableMapping = generator(adv_prompt)[0]  # type: ignore
             decoded = output["generated_text"]
         else:
-            model_inputs = adv_generator.preprocess(prompt, completion="")  # type: ignore
-            model_inputs = adv_generator.ensure_tensor_on_device(**model_inputs)
-            assert isinstance(adv_generator, AdversarialTextGenerationPipeline)
-            adv_model_inputs = adv_generator.attack(model_inputs)  # type: ignore
             output_ids = generator.model.generate(
                 inputs_embeds=adv_model_inputs["inputs_embeds"],
                 max_length=100,

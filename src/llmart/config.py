@@ -448,6 +448,8 @@ class LLMartConf(CoreConf):
     early_stop: bool = True
     val_every: int = 50
     save_every: int = 50
+    max_new_tokens: int = 512
+    banned_strings: list[str] | None = None
 
     model: PipelineConf
     attack: AttackConf
@@ -465,14 +467,20 @@ class LLMartConf(CoreConf):
     use_kv_cache: bool = False
 
     def __post_init__(self):
-        if self.bs > self.per_device_bs:
+        if self.per_device_bs < -1 or self.per_device_bs == 0:
+            raise ValueError(
+                f"Hardware batch size ({self.per_device_bs}) must be either a positive integer or -1 for 'auto' functionality!"
+            )
+
+        if self.per_device_bs > 0 and self.bs > self.per_device_bs:
             assert (
                 (self.bs % self.per_device_bs) == 0
             ), f"Hardware (micro) batch size ({self.per_device_bs}) must divide the batch size ({self.bs})!"
-        elif self.bs < self.per_device_bs:
+        elif self.per_device_bs > 0 and self.bs < self.per_device_bs:
             assert (
                 (self.per_device_bs % self.bs) == 0
             ), f"Batch size ({self.bs}) must divide hardware (micro) batch size ({self.per_device_bs})!"
+
         if (
             self.attack.suffix is None
             and self.attack.prefix is None

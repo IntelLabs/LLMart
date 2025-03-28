@@ -1,5 +1,5 @@
 # Basics and requirements
-Install `llmart`, download this folder, and run `pip install -r requirements.txt`.
+Install `llmart` and download this folder.
 
 ## Auditing unlearning with `llmart`
 Attacks can be used to audit the efficacy of model unlearning.

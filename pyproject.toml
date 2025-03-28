@@ -24,7 +24,7 @@ dev = [
     "pre-commit==4.1.0",
     "basedpyright==1.28.1",
     "pytest==8.3.2",
-    "ruff==0.11.0",
+    "ruff==0.11.2",
 ]
 
 [build-system]

@@ -204,7 +204,7 @@ def train(
         losses.from_config(cfg.closure_loss or cfg.loss),
         is_valid_input=tokenizer.reencodes,
         num_samples=cfg.bs,
-        batch_size=cfg.per_device_bs,  # type: ignore
+        batch_size=cfg.per_device_bs,
         use_kv_cache=cfg.use_kv_cache,
     )
 
@@ -216,7 +216,7 @@ def train(
         optimizer.zero_grad()
 
         model_loss, loss, attack_success, attack_count = 0.0, 0.0, 0, 0
-        for micro_inputs in data.microbatch(inputs, micro_batch_size=cfg.per_device_bs):  # type: ignore
+        for micro_inputs in data.microbatch(inputs, micro_batch_size=cfg.per_device_bs):
             # Get adversarial version of inputs and compute loss using differentiable embedding
             micro_inputs = attack(micro_inputs)
             if not tokenizer.reencodes(micro_inputs["input_ids"]).all():

@@ -17,7 +17,7 @@ from llmart import run_attack
 def main(dict_config: DictConfig):
     cfg: config.LLMartConf = OmegaConf.to_object(dict_config)  # type: ignore
 
-    if cfg.per_device_bs == "auto":
+    if cfg.per_device_bs == -1:
         # Currently only supported for single-device execution
         if torch.cuda.device_count() > 1 or torch.xpu.device_count() > 1:
             raise ValueError(

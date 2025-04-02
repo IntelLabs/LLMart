@@ -451,7 +451,7 @@ def make_closure(
         for micro_inputs in data.microbatch(inputs, micro_batch_size=batch_size):
             adv_inputs = attack(micro_inputs)
             if not is_valid_input(adv_inputs["input_ids"]).all():
-                loss = torch.tensor(torch.inf, device=model.device)
+                loss = torch.tensor(torch.inf, device=adv_inputs["input_ids"].device)
                 break
             else:
                 outputs = model(

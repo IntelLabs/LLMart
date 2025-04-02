@@ -247,7 +247,7 @@ class GreedyCoordinateGradient(Optimizer):
             self._param.data[coord.index, coord.value] = 1.0
         else:
             # Convert values to embeddings and use basic indexing to set embeds
-            embeds = self._embedding(coord.to_tensor(self._embedding.device)[..., 1])
+            embeds = self._embedding(coord.to_tensor(self._param.device)[..., 1])
             for idx, embed in zip(coord.index, embeds):
                 self._param.data[idx].copy_(embed)
 

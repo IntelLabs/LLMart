@@ -470,9 +470,15 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         # and any other special token is red
         from colorlog import escape_codes
 
+        if self.additional_special_tokens_ids is None:
+            raise ValueError(
+                "additional_special_tokens_ids is None, please check the tokenizer!"
+            )
+
         colors = {
             token_id: escape_codes.escape_codes["bg_22"]  # dark green
-            if self.convert_ids_to_tokens(token_id) == (BEGIN_TAG_FORMAT % "response")
+            if self.convert_ids_to_tokens(int(token_id))
+            == (BEGIN_TAG_FORMAT % "response")
             else escape_codes.escape_codes["bg_52"]  # dark red
             for token_id in self.additional_special_tokens_ids
         }

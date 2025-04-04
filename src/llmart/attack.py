@@ -290,8 +290,8 @@ def train(
             pbar.set_postfix(postfix)
 
             # Save tokens with highest success rate
-            if success_rate > best_success_rate:
-                best_success_rate, best_attack = loss, copy.deepcopy(attack)
+            if success_rate >= best_success_rate:
+                best_success_rate, best_attack = success_rate, copy.deepcopy(attack)
 
             # Exit attack loop if we found a successful attack across all training examples
             if (

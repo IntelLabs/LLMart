@@ -16,7 +16,7 @@ core = [
     "accelerate==1.5.2",
     "torch==2.6.0",
     "transformers[sentencepiece]==4.48.0",
-    "tensorboard==2.18.0",
+    "tensorboard==2.19.0",
     "datasets==3.1.0",
 ]
 

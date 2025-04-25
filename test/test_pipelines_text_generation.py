@@ -17,6 +17,7 @@ def pipe():
         "adv-text-generation",
         model="hf-internal-testing/tiny-gpt2-with-chatml-template",
         attack=AttackPrompt(suffix=20),
+        model_kwargs=dict(),
     )
 
     return pipe

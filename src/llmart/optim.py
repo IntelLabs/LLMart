@@ -8,12 +8,14 @@ import torch
 import bisect
 import inspect
 import warnings
+from random import shuffle
 from operator import itemgetter
 from collections import UserDict
 from collections.abc import Callable
 from accelerate.state import PartialState
 from accelerate.utils import gather, reduce, pad_across_processes
 from accelerate.utils import broadcast_object_list, tqdm
+from accelerate.utils.memory import should_reduce_batch_size
 from torch.optim.optimizer import Optimizer, ParamsT  # type: ignore[reportPrivateImportUsage]
 from torch.optim.sgd import SGD  # type: ignore[reportPrivateImportUsage]
 from torch.optim.adam import Adam  # type: ignore[reportPrivateImportUsage]
@@ -189,9 +191,9 @@ class GreedyCoordinateGradient(Optimizer):
         if self._ignore_curr_marginals:
             param.grad[torch.where(param)] = torch.inf
 
-        assert (
-            param.grad.ndim == 2
-        ), "Need 'grad' to be 2D tensor of shape (n_tokens, n_dictionary)!"
+        assert param.grad.ndim == 2, (
+            "Need 'grad' to be 2D tensor of shape (n_tokens, n_dictionary)!"
+        )
         coords = torch.where(torch.isfinite(param.grad))
         coords = torch.stack(coords, dim=0).T
 
@@ -266,10 +268,24 @@ class GreedyCoordinateGradient(Optimizer):
         # Split indexed replacements across devices and compute losses
         replacements = self.coordinate_replacements
         idxes = torch.arange(len(replacements), device=self._param.device)
+        idxes_replacements = list(zip(idxes, replacements))
+        shuffle(idxes_replacements)
         with PartialState().split_between_processes(
-            list(zip(idxes, replacements))
+            idxes_replacements
         ) as local_replacements:
-            local_outputs = self._step(closure, local_replacements)  # type: ignore
+            # Protect against OOMs happening in one process but not another.
+            had_oom = torch.zeros((1,), device=self._param.device)
+            try:
+                local_outputs = self._step(closure, local_replacements)  # type: ignore
+            except Exception as e:
+                if should_reduce_batch_size(e):
+                    had_oom.add_(1)
+                else:
+                    raise
+            # If any process had an OOM then raise an OOM in all processes using a generic "CUDA" message
+            had_oom: torch.Tensor = reduce(had_oom, "sum")  # type: ignore
+            if had_oom > 0:
+                raise torch.OutOfMemoryError("CUDA out of memory.")
             local_outputs = pad_across_processes(local_outputs, pad_index=-1)  # type: ignore
 
         # Gather global indices and losses and select valid ones

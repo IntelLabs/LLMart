@@ -32,9 +32,9 @@ def sample_coord_randk(coords: torch.Tensor, coord_randk: int) -> torch.Tensor:
     output_coords = []
     for desired_coord in valid_tokens:
         valid_rows = torch.where(coords[:, 0] == desired_coord)[0]
-        assert (
-            len(valid_rows) > 0
-        ), f"No candidates found for swapping token position {desired_coord}!"
+        assert len(valid_rows) > 0, (
+            f"No candidates found for swapping token position {desired_coord}!"
+        )
 
         # Pick at most random-k
         picked_rows = valid_rows[

@@ -6,15 +6,19 @@
 ![GitHub License](https://img.shields.io/github/license/IntelLabs/LLMart)
 ![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FIntelLabs%2FLLMart%2Frefs%2Fheads%2Fmain%2Fpyproject.toml)
 
-:rocket: [Quick start](#rocket-quick-start) ⏐ :briefcase: [Project Overview](#briefcase-project-overview) ⏐ :robot: [Models](#robot-models) ⏐ :clipboard: [Datasets](#clipboard-datasets) ⏐ :chart_with_downwards_trend: [Optimizers and schedulers](#chart_with_downwards_trend-optimizers-and-schedulers) ⏐ :pencil2: [Citation](#pencil2-citation)
+:rocket: [Quick start](#rocket-quick-start) ⏐ :briefcase: [Project overview](#briefcase-project-overview) ⏐ :robot: [Models](#robot-models) ⏐ :clipboard: [Datasets](#clipboard-datasets) ⏐ :chart_with_downwards_trend: [Optimizers and schedulers](#chart_with_downwards_trend-optimizers-and-schedulers) ⏐ :pencil2: [Citation](#pencil2-citation)
 
 </div>
 
 ## 🆕 Latest updates
-❗Release 2025.03 brings a new experimental functionality for letting **LLM**art automatically estimate the maximum usable `per_device_bs`. This can result in speed-ups up to 10x on devices with a sufficient amount of memory! Enable from the command line using `per_device_bs=-1`.
+❗Release 2025.04 brings full native support for running **LLM**art on [Intel AI PCs](https://www.intel.com/content/www/us/en/products/docs/processors/core-ultra/ai-pc.html)! This allows AI PC owners to _locally_ and rigorously evaluate the security of their own privately fine-tuned and deployed LLMs.
+
+❗This release also marks our transition to a `uv`-centric install experience. Enjoy robust, platform agnostic (Windows, Linux) one-line installs by using `uv sync --extra gpu` (for GPUs) or `uv sync --extra xpu` (for Intel XPUs).
 
 <details>
 <summary>Past updates</summary>
+❗Release 2025.03 brings a new experimental functionality for letting **LLM**art automatically estimate the maximum usable `per_device_bs`. This can result in speed-ups up to 10x on devices with a sufficient amount of memory! Enable from the command line using `per_device_bs=-1`.
+
 ❗Release 2025.02 brings significant speed-ups to the core library, with zero user involvement.\
 We additionally recommend using the command line argument `per_device_bs` with a value as large as possible on GPUs with at least 48GB to take the most advantage of further speed-ups.
 
@@ -30,30 +34,53 @@ accelerate launch -m llmart model=deepseek-r1-distill-llama-8b data=basic per_de
 **LLM**art is a toolkit for evaluating LLM robustness through adversarial testing. Built with PyTorch and Hugging Face integrations, **LLM**art enables scalable red teaming attacks with parallelized optimization across multiple devices.
 **LLM**art has configurable attack patterns, support for soft prompt optimization, detailed logging, and is intended both for high-level users that want red team evaluation with off-the-shelf algorithms, as well as research power users that intend to experiment with the implementation details of input-space optimization for LLMs.
 
-While it is still under development, the goal of **LLM**art is to support any Hugging Face model and include example scripts for modular implementation of different attack strategies. **LLM**art is developed and tested on Ubuntu 22.04 with Python 3.11.
+While it is still under development, the goal of **LLM**art is to support any Hugging Face model and include example scripts for modular implementation of different attack strategies.
 
+### Installation
+**LLM**art is developed and tested on Ubuntu 22.04 and Windows. We use `uv` for packaging, which must be first [installed separately](https://docs.astral.sh/uv/getting-started/installation/) on your operating system.
+> [!CAUTION]
+> The 64-bit version of `uv` must be installed and used in the installation process, especially on Windows, where [issues](https://github.com/astral-sh/uv/issues/11217#issuecomment-2663156767) may occur if the 32-bit version is used.
+
+
+**LLM**art requires a machine with at least one NVIDIA GPU _or_ one [Intel GPU](https://www.intel.com/content/www/us/en/products/details/discrete-gpus/arc.html).
+
+Currently, we only support installation from source. First, clone and enter the repository:
+```bash
+git clone https://github.com/IntelLabs/LLMart
+cd LLMart
+```
+
+Installation from source for NVIDIA GPUs:
+```bash
+uv sync --extra gpu
+```
+
+Installation from source for Intel GPUs requires one additional step:
+```bash
+uv sync --extra xpu
+```
+
+> [!CAUTION]
+> While not recommended, **LLM**art can also be installed using `pip` and `venv`:
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate # Or .venv/Scripts/activate for Windows
+pip install -e ".[gpu]" # Or xpu
+```
+
+### Running an adversarial attack
 Suppose we want to optimize an adversarial attack that forces the following open-ended response from the `meta-llama/Meta-Llama-3-8B-Instruct` model:
 > **User:** Tell me about the planet Saturn. <20-token-optimized-suffix><br>
 > **Response:** NO WAY JOSE
 
-
-First, basic installation from source is done via:
-```bash
-git clone https://github.com/IntelLabs/LLMart
-cd LLMart
-
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[core,dev]"
-```
-
-> [!NOTE]
-> We include lockfiles that ensure a valid Python environment and recommend using `uv sync --all-extras` to ensure consistent development.\
-> Alternatively, `poetry sync --all-extras` can be used with `poetry >= 2.0`.
-
 Once the environment is installed and `export HF_TOKEN=...` is set to a token with valid model access, **LLM**art can be run to optimize the suffix using:
 ```bash
-accelerate launch -m llmart model=llama3-8b-instruct data=basic loss=model
+uv run accelerate launch -m llmart model=llama3-8b-instruct data=basic
+```
+
+Running on Intel GPUs only requires adding the `model.device=xpu` command line argument:
+```bash
+uv run accelerate launch -m llmart model=custom model.name=meta-llama/Llama-3.2-3B-Instruct model.revision=0cb88a4f764b7a12671c53f0838cd831a0843b95 data=basic model.device=xpu
 ```
 
 This will automatically distribute an attack on the maximum number of detected devices. Results are saved in the `outputs/llmart` folder and can be visualized in `tensorboard` using:
@@ -102,7 +129,7 @@ model=custom model.name=... model.revision=...
 
 For example, to load a custom model:
 ```bash
-accelerate launch -m llmart model=custom model.name=Intel/neural-chat-7b-v3-3 model.revision=7506dfc5fb325a8a8e0c4f9a6a001671833e5b8e data=basic loss=model
+uv run accelerate launch -m llmart model=custom model.name=Intel/neural-chat-7b-v3-3 model.revision=7506dfc5fb325a8a8e0c4f9a6a001671833e5b8e data=basic
 ```
 
 > [!TIP]
@@ -111,7 +138,7 @@ accelerate launch -m llmart model=custom model.name=Intel/neural-chat-7b-v3-3 mo
 ### :brain: Large models
 **LLM**art also supports large models that cannot execute the forward and/or backward pass on a single device:
 ```bash
-python -m llmart model=llama3.1-70b-instruct model.device=null model.device_map=auto data=basic loss=model
+uv run python -m llmart model=llama3.1-70b-instruct model.device=null model.device_map=auto data=basic
 ```
 
 > [!CAUTION]
@@ -149,7 +176,7 @@ diff src/llmart/datasets/basic.py
 
 Using AdvBench with **LLM**art requires specifying the desired subset of samples to attack. By default, the following command will automatically download the .csv file from its [original source](https://raw.githubusercontent.com/llm-attacks/llm-attacks/refs/heads/main/data/advbench/harmful_behaviors.csv) and use it as a dataset:
 ```bash
-accelerate launch -m llmart model=llama3-8b-instruct data=advbench_behavior data.subset=[0] loss=model
+uv run accelerate launch -m llmart model=llama3-8b-instruct data=advbench_behavior data.subset=[0]
 ```
 
 To train a single adversarial attack on multiple samples, users can specify the exact samples via `data.subset=[0,1]`.
@@ -157,7 +184,7 @@ The above command is also compatible with local modifications of the dataset by 
 
 In the most general case, you can write your own [dataset loading script](https://huggingface.co/docs/datasets/en/dataset_script) and pass it to **LLM**art:
 ```bash
-accelerate launch -m llmart model=llama3-8b-instruct loss=model data=custom data.path=/path/to/dataset.py
+uv run accelerate launch -m llmart model=llama3-8b-instruct data=custom data.path=/path/to/dataset.py
 ```
 Just make sure you conform to the output format in [`datasets/basic.py`](src/llmart/datasets/basic.py).
 
@@ -189,7 +216,7 @@ If you find this repository useful in your work, please cite:
   author = {Cory Cornelius and Marius Arvinte and Sebastian Szyller and Weilin Xu and Nageen Himayat},
   title = {{LLMart}: {L}arge {L}anguage {M}odel adversarial robutness toolbox},
   url = {http://github.com/IntelLabs/LLMart},
-  version = {2025.03},
+  version = {2025.04},
   year = {2025},
 }
 ```

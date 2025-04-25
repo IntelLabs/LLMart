@@ -131,17 +131,6 @@ def test_tokenizer_chat(tok, tag_tok, prefix, suffix):
 
 
 def test_tokenizer_tag_fails(tag_tok):
-    # Fails because need to pass return_tensors="pt"
-    with pytest.raises(ValueError):
-        tag_tok("<|begin_suffix|>Hello<|end_suffix|>")
-
-    # Fails because need to pass return_tensors="pt"
-    with pytest.raises(ValueError):
-        tag_tok.apply_chat_template(
-            [dict(role="user", content="<|begin_suffix|>Hello<|end_suffix|>")],
-            return_dict=True,
-        )
-
     # Cannot tokenize with back-to-back adversarial tokens since this is ambiguous
     # The example below turns into "HelloWorld" which can tokenize into a single token!
     with pytest.raises(ValueError):

@@ -30,8 +30,6 @@ def main(
         task="text-generation",
         model="microsoft/Llama2-7b-WhoIsHarryPotter",
         revision="e4347ee6643edd19b107a120a80388e126d407c0",
-        # model = "meta-llama/Llama-2-7b-chat-hf",
-        # revision= "f5db02db724555f92da89c216ac04704f23d4590",
         device_map="auto",
         do_sample=False,
         top_p=None,
@@ -85,6 +83,7 @@ def attack(
         attack=AttackPrompt(prefix=prefix_len, default_token=" @"),
         inf_loss_when_nonreencoding=use_hard_tokens,
         return_type=ReturnType.NEW_TEXT,
+        model_kwargs=dict(),
     )
     assert isinstance(adv_generator, AdversarialTextGenerationPipeline)
 

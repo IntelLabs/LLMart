@@ -8,6 +8,7 @@ import re
 import torch
 from functools import cached_property
 from transformers import PreTrainedTokenizerFast, BatchEncoding, AddedToken
+from transformers.utils import TensorType
 
 BEGIN_TAG_FORMAT = "<|begin_%s|>"
 BEGIN_TAG_PATTERN = r"<\|begin_(?P<name>\w+)\|>"
@@ -52,7 +53,9 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
 
         # Magically subclass tokenizer
         self.__class__ = type(
-            tokenizer.__class__.__name__, (self.__class__, tokenizer.__class__), {}
+            tokenizer.__class__.__name__,  # type: ignore[reportAttributeAccessIssue]
+            (self.__class__, tokenizer.__class__),
+            {},
         )
         self.__dict__ = tokenizer.__dict__
         self.__vocab_size = len(self)
@@ -79,7 +82,9 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
 
         # Detect add_prefix_space
         self.add_prefix_space = (
-            super().decode(super().encode("@", add_special_tokens=True))
+            super().decode(
+                super().encode("@", add_special_tokens=True),  # type: ignore[reportArgumentType]
+            )
             == f"{self.bos_token} @"
         )
 
@@ -87,30 +92,12 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
     def tag_ids(self) -> list[int]:
         return self.convert_tokens_to_ids(self.tags)  # type: ignore
 
-    def apply_chat_template(self, conversation, *args, **kwargs):
-        """Applies the chat template while preserving tag information.
-
-        See :func:`~transformers.PreTrainedTokenizerBase.apply_chat_template` for more info.
-        """
-
-        tokenize = kwargs.pop("tokenize", True)
-
-        # Render conversation with tag tokens
-        tagged_text = super().apply_chat_template(conversation, tokenize=False)
-
-        # Remove tags from conversation and render it
-        for tag in self.tags:
-            conversation = self._remove_tag(tag, conversation)
-        return super().apply_chat_template(
-            conversation,  # type: ignore
-            *args,
-            tokenizer_kwargs={"tagged_text": tagged_text},
-            tokenize=tokenize,
-            **kwargs,
-        )
-
     def __call__(
-        self, text=None, *args, tagged_text: str | None = None, **kwargs
+        self,
+        text=None,
+        *args,
+        return_tensors: str | TensorType | None = None,
+        **kwargs,
     ) -> BatchEncoding:
         """Tokenizes text while tracking tagged portions.
 
@@ -120,27 +107,27 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         if text is None:
             raise ValueError("{self.__class__.__name__} only supports text as input")
 
+        if return_tensors is not None and not isinstance(return_tensors, TensorType):
+            return_tensors = TensorType(return_tensors)
+
         # Keep tagged text
-        tagged_text = tagged_text or text
+        tagged_text = text
 
         # Remove tags from tagged text
         for tag in self.tags:
             text = self._remove_tag(tag, text)
 
         # Call original tokenizer and exit early if no tags
-        inputs = super().__call__(text, *args, **kwargs)  # type: ignore
-        if tagged_text == text:
+        inputs = super().__call__(text, *args, return_tensors=return_tensors, **kwargs)  # type: ignore
+        if return_tensors != TensorType.PYTORCH:
             return inputs
 
         # Otherwise, tokenize tagged text...
-        tagged_inputs = super().__call__(tagged_text, *args, **kwargs)  # type: ignore
+        tagged_inputs = super().__call__(
+            tagged_text, *args, return_tensors=return_tensors, **kwargs
+        )  # type: ignore
         inputs_ids: torch.Tensor = inputs["input_ids"]  # type: ignore
         tagged_inputs_ids: torch.Tensor = tagged_inputs["input_ids"]  # type: ignore
-
-        if not isinstance(inputs_ids, torch.Tensor) or not isinstance(
-            tagged_inputs_ids, torch.Tensor
-        ):
-            raise ValueError('You must pass return_tensors="pt"')
 
         # ...and create a map of the input.
         inputs["input_map"] = self._create_inputs_map(inputs_ids, tagged_inputs_ids)
@@ -167,10 +154,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             return [self._remove_tag(tag, t) for t in text]
 
         elif isinstance(text, dict):
-            return dict(
-                role=text["role"],
-                content=self._remove_tag(tag, text["content"]),
-            )
+            return {k: self._remove_tag(tag, v) for k, v in text.items()}
 
         elif isinstance(text, str):
             tag_id: int = self.convert_tokens_to_ids(tag)  # type: ignore
@@ -334,10 +318,11 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
 
         start = None
         begin_token = None
+        tokens = self.convert_ids_to_tokens(ids.tolist())
+        if isinstance(tokens, str):
+            tokens = [tokens]
 
-        for i, (token_id, token) in enumerate(
-            zip(ids, self.convert_ids_to_tokens(ids))  # type: ignore
-        ):
+        for i, (token_id, token) in enumerate(zip(ids, tokens)):
             # If we have a begin tag...
             if token_id in self.tag_ids and (m := re.match(BEGIN_TAG_PATTERN, token)):
                 if start is not None:
@@ -393,7 +378,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         assert len(sequences.shape) == 2
         sequences = sequences.cpu()
 
-        sentences = self.batch_decode(sequences)
+        sentences = self.batch_decode(sequences)  # type: ignore[reportArgumentType]
 
         # Pad to same length as original sequence
         new_sequences = self(

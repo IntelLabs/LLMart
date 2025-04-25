@@ -54,6 +54,7 @@ def attack(
         device_map="cuda:1",
         torch_dtype="bfloat16",
         max_new_tokens=1,
+        model_kwargs=dict(),
     )
 
     # Attack pipeline
@@ -67,6 +68,7 @@ def attack(
             repl_pad_left=" ",
             repl_pad_right=" ",
         ),
+        model_kwargs=dict(),
     )
     assert isinstance(adv_pipe, AdversarialTextGenerationPipeline)
 
@@ -123,6 +125,7 @@ def attack(
 
                 # FIXME: Not sure why the type isn't correct when dereferencing outputs
                 logits = outputs["logits"][..., -2, :]  # type: ignore
+                assert isinstance(logits, torch.Tensor)
 
                 # Find "yes" logits and select the one with lowest NLL to minmiize
                 all_dict_logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
@@ -130,6 +133,7 @@ def attack(
 
                 # Compute per-example loss but use model loss when infinite
                 model_losses = outputs["losses"]  # type: ignore
+                assert isinstance(model_losses, torch.Tensor)
                 losses = torch.min(-target_logprobs, dim=-1)[0]
                 losses = torch.where(model_losses == torch.inf, torch.inf, losses)
                 param_losses = zip(param_idxs, losses)

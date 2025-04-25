@@ -77,6 +77,7 @@ def attack(
         attack=AttackPrompt(prefix=num_tokens, default_token=" @", prefix_pad_right=""),
         inf_loss_when_nonreencoding=use_hard_tokens,
         return_type=ReturnType.NEW_TEXT,
+        model_kwargs=dict(),
     )
     assert isinstance(adv_generator, AdversarialTextGenerationPipeline)
 

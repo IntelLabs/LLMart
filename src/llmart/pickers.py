@@ -37,9 +37,9 @@ def pick_coord_topk(
     output_coords = []
     for desired_coord in valid_tokens:
         valid_rows = torch.where(coords[:, 0] == desired_coord)[0]
-        assert (
-            len(valid_rows) > 0
-        ), f"No candidates found for swapping token position {desired_coord}!"
+        assert len(valid_rows) > 0, (
+            f"No candidates found for swapping token position {desired_coord}!"
+        )
 
         # Get the gradients too, we need them to sort
         # !!! Uses advanced indexing
@@ -101,9 +101,9 @@ def pick_global_topk(
         picks_per_remaining_tokens = (global_topk - num_safe_winners) // len(
             missing_idxs
         )
-        assert (
-            picks_per_remaining_tokens > 0
-        ), "Some token swaps are completely dropped!"
+        assert picks_per_remaining_tokens > 0, (
+            "Some token swaps are completely dropped!"
+        )
 
         # For each unpicked token position, pick its top-most survivors
         extra_coords = []

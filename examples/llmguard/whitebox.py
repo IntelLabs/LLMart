@@ -37,6 +37,7 @@ def attack(
         truncation=True,
         max_length=512,
         device=device,
+        model_kwargs=dict(),
     )
 
     # We're running a suffix attack with 2 adversarial tokens
@@ -46,6 +47,7 @@ def attack(
         tokenizer=classifier.tokenizer,
         attack=AttackPrompt(suffix=suffix_length, default_token=suffix_init),
         device=device,
+        model_kwargs=dict(),
     )
 
     assert isinstance(adv_classifier, AdversarialTextClassificationPipeline)

@@ -47,6 +47,7 @@ def attack(suffix=6, n_swaps=1024, n_tokens=1, num_steps=1000, per_device_bs=64)
         device_map="cuda:1",
         torch_dtype="bfloat16",
         max_new_tokens=1,
+        model_kwargs=dict(),
     )
 
     # Attack pipeline
@@ -55,6 +56,7 @@ def attack(suffix=6, n_swaps=1024, n_tokens=1, num_steps=1000, per_device_bs=64)
         model=pipe.model.requires_grad_(False),
         tokenizer=pipe.tokenizer,
         attack=AttackPrompt(suffix=suffix),
+        model_kwargs=dict(),
     )
     assert isinstance(adv_pipe, AdversarialTextGenerationPipeline)
 
@@ -111,13 +113,15 @@ def attack(suffix=6, n_swaps=1024, n_tokens=1, num_steps=1000, per_device_bs=64)
 
                 # FIXME: Not sure why the type isn't correct when dereferencing outputs
                 logits = outputs["logits"][..., -2, :]  # type: ignore
+                assert isinstance(logits, torch.Tensor)
 
-                # Find "yes" logits and select the one with lowest NLL to minmiize
+                # Find "yes" logits and select the one with lowest NLL to minimize
                 all_dict_logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
                 target_logprobs = all_dict_logprobs[..., YES_TOKEN_IDS]
 
                 # Compute per-example loss but use model loss when infinite
                 model_losses = outputs["losses"]  # type: ignore
+                assert isinstance(model_losses, torch.Tensor)
                 losses = torch.min(-target_logprobs, dim=-1)[0]
                 losses = torch.where(model_losses == torch.inf, torch.inf, losses)
                 param_losses = zip(param_idxs, losses)

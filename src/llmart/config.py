@@ -461,7 +461,7 @@ class LLMartConf(CoreConf):
     scheduler: SchedulerConf
 
     # sampler + dataloader
-    per_device_bs: int = 1
+    per_device_bs: int = -1
     bs: int = 1
     with_replacement: bool = True
     use_kv_cache: bool = False
@@ -471,15 +471,6 @@ class LLMartConf(CoreConf):
             raise ValueError(
                 f"Hardware batch size ({self.per_device_bs}) must be either a positive integer or -1 for 'auto' functionality!"
             )
-
-        if self.per_device_bs > 0 and self.bs > self.per_device_bs:
-            assert (
-                (self.bs % self.per_device_bs) == 0
-            ), f"Hardware (micro) batch size ({self.per_device_bs}) must divide the batch size ({self.bs})!"
-        elif self.per_device_bs > 0 and self.bs < self.per_device_bs:
-            assert (
-                (self.per_device_bs % self.bs) == 0
-            ), f"Batch size ({self.bs}) must divide hardware (micro) batch size ({self.per_device_bs})!"
 
         if (
             self.attack.suffix is None

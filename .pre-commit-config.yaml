@@ -17,7 +17,7 @@ repos:
 
   # python linting and formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.7
+    rev: v0.11.0
     hooks:
       # Run the linter.
       - id: ruff
@@ -26,8 +26,8 @@ repos:
       - id: ruff-format
 
   # pyright type-checks
-  - repo: https://github.com/DetachHead/basedpyright
-    rev: v1.12.5
+  - repo: https://github.com/DetachHead/basedpyright-pre-commit-mirror
+    rev: 1.28.1
     hooks:
       - id: basedpyright
 

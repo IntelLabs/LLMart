@@ -135,7 +135,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
             _train = find_executable_batch_size(train)
         else:
             _train = partial(train, cfg.per_device_bs)
-        step, best_step, best_attack, train_results = _train(
+        step, attack, best_step, best_attack, train_results = _train(
             ds,
             attack_prompt,
             tokenizer,  # type: ignore
@@ -177,7 +177,7 @@ def train(
     cfg: config.LLMartConf,
     accelerator: Accelerator,
     log: logging.Logger | logging.LoggerAdapter,
-) -> tuple[int, int, AdversarialAttack, dict]:
+) -> tuple[int, AdversarialAttack, int, AdversarialAttack, dict]:
     if cfg.per_device_bs == -1:
         log.info(f"Trying {per_device_bs=}")
     global TRAIN_STOP
@@ -211,7 +211,7 @@ def train(
 
     # Return attack if no training planned
     if cfg.steps <= 0:
-        return 0, 0, attack, dict()
+        return 0, attack, 0, attack, dict()
 
     # Dataloaders
     train_bs = cfg.bs
@@ -419,7 +419,7 @@ def train(
         torch.save(accelerator.unwrap_model(attack).state_dict(), attack_path)
         log.info(f"{attack_path=}")
 
-    return step, best_step, best_attack, results
+    return step, attack, best_step, best_attack, results
 
 
 def make_closure(

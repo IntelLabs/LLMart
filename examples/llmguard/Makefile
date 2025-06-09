@@ -15,6 +15,6 @@ args=--suffix_length $(suffix_length) --label $(label) $(string)
 all: run
 
 run:
-> uv run --with-requirements requirements.txt whitebox.py $(args)
+> $(RUN_GPU) --with-requirements requirements.txt whitebox.py $(args)
 
 .PHONY: all run

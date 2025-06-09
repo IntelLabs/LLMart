@@ -4,57 +4,56 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import torch
 import datasets
-from transformers import BatchEncoding
+from transformers.tokenization_utils_base import BatchEncoding
 
-from llmart import TaggedTokenizer, Transform
-
-
-class BasicConfig(datasets.BuilderConfig):
-    def __init__(
-        self,
-        *args,
-        tokenizer: TaggedTokenizer,
-        mark_prompt: Transform,
-        mark_completion: Transform,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-
-        self.tokenizer = tokenizer
-        self.mark_prompt = mark_prompt
-        self.mark_completion = mark_completion
+from llmart import DataMapper
 
 
 class BasicBuilder(datasets.GeneratorBasedBuilder):
-    BUILDER_CONFIG_CLASS = BasicConfig
-
     def _info(self):
         return datasets.DatasetInfo()
 
     def _split_generators(self, dl_manager):
-        del dl_manager
         return [datasets.SplitGenerator(name="train")]
 
     def _generate_examples(self, **kwargs):
-        mark_prompt: Transform = self.config.mark_prompt  # type: ignore
-        mark_completion: Transform = self.config.mark_completion  # type: ignore
+        example = dict(
+            prompt="Tell me about the planet Saturn.", completion="NO WAY JOSE"
+        )
+        yield 0, example
 
-        # Create conversation data structure and mark parts we care about
-        conv = [
-            dict(role="user", content=mark_prompt("Tell me about the planet Saturn.")),
-            dict(role="assistant", content=mark_completion("NO WAY JOSE")),
+
+class BasicMapper(DataMapper):
+    def __call__(self, batch):
+        # Mark conversation noting that they are batched
+        convs = [
+            [
+                dict(role="user", content=self.modify_prompt(prompt)),
+                dict(role="assistant", content=self.force_completion(completion)),
+            ]
+            for prompt, completion in zip(batch["prompt"], batch["completion"])
         ]
 
-        # Turn conversation into input_ids and masks
-        inputs: BatchEncoding = self.config.tokenizer.apply_chat_template(  # type: ignore
-            conv, return_tensors="pt", return_dict=True
+        # Turn conversation into input_ids and masks.
+        # NOTE: One could use llmart.ConversationMapper or return bare conversations.
+        inputs = self.tokenizer.apply_chat_template(
+            convs,
+            padding=True,
+            return_tensors="pt",
+            return_dict=True,
         )
+        assert isinstance(inputs, BatchEncoding)
 
         # Construct labels from response_mask
-        response_mask = inputs["response_mask"]  # type: ignore
-        inputs["labels"] = inputs["input_ids"].clone()  # type: ignore
-        inputs["labels"][~response_mask] = -100  # type: ignore
+        input_ids = inputs["input_ids"]
+        assert isinstance(input_ids, torch.Tensor)
+        labels = input_ids.detach().clone()
 
-        # Remove batch axis which apply_chat_template adds
-        yield 0, {k: v[0] for k, v in inputs.items()}
+        response_mask = inputs["response_mask"]
+        assert isinstance(response_mask, torch.Tensor)
+        labels[~response_mask] = -100
+
+        inputs["labels"] = labels
+        return inputs.data

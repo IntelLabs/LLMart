@@ -105,8 +105,22 @@ def test_tokenizer(tok, tag_tok, prefix, suffix):
     )
 
     assert_inputs_equal(
+        tok([text]),
+        tag_tok([text]),
+    )
+
+
+@pytest.mark.parametrize("prefix,suffix", ATTACKS)
+def test_tokenizer_pt(tok, tag_tok, prefix, suffix):
+    text = f"{prefix}{PROMPT}{suffix}{COMPLETION}"
+    assert_inputs_equal(
         tok(text, return_tensors="pt"),
         tag_tok(text, return_tensors="pt"),
+    )
+
+    assert_inputs_equal(
+        tok([text], return_tensors="pt"),
+        tag_tok([text], return_tensors="pt"),
     )
 
 
@@ -131,11 +145,11 @@ def test_tokenizer_chat(tok, tag_tok, prefix, suffix):
 
 
 def test_tokenizer_tag_fails(tag_tok):
-    # Cannot tokenize with back-to-back adversarial tokens since this is ambiguous
-    # The example below turns into "HelloWorld" which can tokenize into a single token!
+    # Tokens in back-to-back adversarial blocks can be ambiguous
+    # The example below turns into "Hello" which will tokenize into a single token!
     with pytest.raises(ValueError):
         tag_tok(
-            "<|begin_prefix|>Hello<|end_prefix|><|begin_suffix|>World<|end_suffix|>",
+            "<|begin_prefix|>Hel<|end_prefix|><|begin_suffix|>lo<|end_suffix|>",
             return_tensors="pt",
         )
 

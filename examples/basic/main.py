@@ -106,6 +106,8 @@ def attack(
         is_valid_input=wrapped_tokenizer.reencodes,
         batch_size=per_device_bs,
         use_kv_cache=False,  # NOTE: KV caching is incompatible with optimizable position
+        ignored_keys=wrapped_tokenizer.mask_names
+        + ["inputs_embeds"],  # NOTE: AdversarialBlockShift returns inputs_embeds
     )
 
     # For each step

@@ -256,3 +256,19 @@ class AdversarialAttack(torch.nn.Module):
 
         outputs = torch.stack(outputs)
         return outputs
+
+    def state_dict(self, *args, **kwargs):
+        state = super().state_dict(*args, **kwargs)
+        if self.dim == 0 and torch.all(self.param.sum(dim=-1) == 1).item():
+            # Convert dense one-hot tensor to N tensor using argmax
+            state["param"] = self.param.argmax(dim=-1)
+        return state
+
+    def load_state_dict(self, state_dict: MutableMapping[str, Any], **kwargs):  # type: ignore
+        if "param" in state_dict and state_dict["param"].dim() == 1:
+            # Convert N tensor back to one-hot dense tensor
+            indices = state_dict["param"]
+            state_dict["param"] = F.one_hot(
+                indices, num_classes=self.embedding.num_embeddings
+            ).to(dtype=self.param.dtype, device=self.param.device)
+        super().load_state_dict(state_dict, **kwargs)

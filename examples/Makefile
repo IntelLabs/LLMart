@@ -6,7 +6,7 @@
 
 include ../preamble.mk
 
-EXAMPLE_DIRS := basic autogcg fact_checking llmguard random_strings unlearning
+EXAMPLE_DIRS := basic autogcg fact_checking llada llmguard random_strings unlearning vlm
 
 all: run
 

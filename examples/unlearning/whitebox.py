@@ -140,7 +140,7 @@ def attack(
         model_inputs = adv_generator.ensure_tensor_on_device(**model_inputs)
         assert isinstance(adv_generator, AdversarialTextGenerationPipeline)
         adv_model_inputs = adv_generator.attack(model_inputs)
-        output_ids = generator.model.generate(
+        output_ids = generator.model.generate(  # type: ignore[reportCallIssue]
             inputs_embeds=adv_model_inputs["inputs_embeds"], max_length=100
         )[0]
         decoded = generator.tokenizer.decode(output_ids)  # type: ignore

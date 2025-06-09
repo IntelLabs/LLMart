@@ -6,11 +6,8 @@
 
 include ../../preamble.mk
 
-time_budget_s=120
-subset=2
-steps=2
-num_seeds=2
-args=--subset $(subset) --time_budget_s $(time_budget_s) --steps $(steps) --num_seeds $(num_seeds)
+model=ByteDance-Seed/UI-TARS-2B-SFT
+args=--model $(model) --max_epochs=3
 
 all: run
 

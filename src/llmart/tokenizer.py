@@ -80,10 +80,12 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         self.tags = tags or []
         self.banned_strings = banned_strings or []
 
-        # Detect add_prefix_space
-        self.add_prefix_space = (
-            super().decode(
-                super().encode("@", add_special_tokens=True),  # type: ignore[reportArgumentType]
+        # NOTE: For some reason Llama2 tokenizers adds a space to special tokens,
+        #       so we detect that here by checking for an added space.
+        #       See: https://github.com/huggingface/tokenizers/issues/1237
+        self._adds_prefix_space = (
+            super().decode(  # type: ignore[reportArgumentType]
+                super().encode(f"{self.bos_token}@", add_special_tokens=False),  # type: ignore[reportArgumentType]
             )
             == f"{self.bos_token} @"
         )
@@ -91,6 +93,14 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
     @property
     def tag_ids(self) -> list[int]:
         return self.convert_tokens_to_ids(self.tags)  # type: ignore
+
+    @property
+    def mask_names(self) -> list[str]:
+        names = ["input_map"]
+        for tag in self.tags:
+            if m := re.match(BEGIN_TAG_PATTERN, tag):
+                names.append(MASK_FORMAT % m["name"])
+        return names
 
     def __call__(
         self,
@@ -119,17 +129,21 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
 
         # Call original tokenizer and exit early if no tags
         inputs = super().__call__(text, *args, return_tensors=return_tensors, **kwargs)  # type: ignore
-        if return_tensors != TensorType.PYTORCH:
+        if return_tensors not in (None, TensorType.PYTORCH):
             return inputs
 
         # Otherwise, tokenize tagged text...
         tagged_inputs = super().__call__(
             tagged_text, *args, return_tensors=return_tensors, **kwargs
         )  # type: ignore
-        inputs_ids: torch.Tensor = inputs["input_ids"]  # type: ignore
-        tagged_inputs_ids: torch.Tensor = tagged_inputs["input_ids"]  # type: ignore
 
         # ...and create a map of the input.
+        inputs_ids = inputs["input_ids"]
+        tagged_inputs_ids = tagged_inputs["input_ids"]
+        if not isinstance(inputs_ids, torch.Tensor):
+            inputs_ids = torch.tensor(inputs_ids)
+        if not isinstance(tagged_inputs_ids, torch.Tensor):
+            tagged_inputs_ids = torch.tensor(tagged_inputs_ids)
         inputs["input_map"] = self._create_inputs_map(inputs_ids, tagged_inputs_ids)
 
         # Turn input map into a series of boolean masks
@@ -137,6 +151,11 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             if m := re.match(BEGIN_TAG_PATTERN, tag):
                 inputs[MASK_FORMAT % m["name"]] = inputs["input_map"] == tag_id
 
+        # Turn PT inputs to lists, if requested
+        if return_tensors is None:
+            for key, value in inputs.items():
+                if isinstance(value, torch.Tensor):
+                    inputs[key] = value.tolist()
         return inputs
 
     def _remove_tag(self, tag: str, text: list | dict | str) -> list | dict | str:
@@ -185,15 +204,22 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             Tensor mapping of input tokens to their corresponding tags
 
         Raises:
-            ValueError: If tagged elements are back-to-back or content not found
+            ValueError: If content not found. This typically occurs when tagged content
+            is fused into a single token, preventing correct span matching.
         """
+
+        if inputs_ids.ndim != tagged_inputs_ids.ndim:
+            raise ValueError(
+                f"inputs_ids ndim must match tagged_inputs_ids ndim ({inputs_ids.ndim} vs {tagged_inputs_ids.ndim})!"
+            )
 
         inputs_map = inputs_ids.clone().fill_(0)
 
-        for input_ids, tagged_input_ids, input_map in zip(
-            inputs_ids, tagged_inputs_ids, inputs_map
-        ):
-            first_iteration = True  # FIXME: I don't like this
+        if inputs_ids.ndim == 1:
+            iterator = zip([inputs_ids], [tagged_inputs_ids], [inputs_map])
+        else:
+            iterator = zip(inputs_ids, tagged_inputs_ids, inputs_map)
+        for input_ids, tagged_input_ids, input_map in iterator:
             while True:
                 # Remove common prefix since we can safely ignore these tokens since they
                 # contain no tags.
@@ -207,13 +233,6 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
                     break
 
                 start, stop = span
-
-                # if we did not remove any common prefix and the next element span starts at the beginning
-                # then elements must be back-to-back (except in the first iteration).
-                if not first_iteration and i == 0 and start == 0:
-                    raise ValueError(
-                        "Tagged elements cannot be back-to-back since this induces ambiguous tokenizations."
-                    )
 
                 tag_id = tagged_input_ids[start]
                 content = tagged_input_ids[start + 1 : stop]
@@ -263,8 +282,6 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
                 input_map = input_map[i + len(content) :]
                 input_ids = input_ids[i + len(content) :]
                 tagged_input_ids = tagged_input_ids[stop + 1 :]
-
-                first_iteration = False
 
         return inputs_map
 
@@ -357,21 +374,33 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         # NOTE: For some reason Llama2 tokenizers adds a space to special tokens,
         #       so we add special cases here.
         #       See: https://github.com/huggingface/tokenizers/issues/1237
-        if self.add_prefix_space:
+        if self._adds_prefix_space:
             for special_token in self.all_special_tokens:
                 decoded = decoded.replace(f"{special_token} ", f"{special_token}")
 
         return decoded
 
-    def reencodes(self, sequences: torch.Tensor) -> torch.Tensor:
+    def reencodes(
+        self, sequences: torch.Tensor, attention_masks: torch.Tensor | None = None
+    ) -> torch.Tensor:
         """Tests if sequences can be perfectly reconstructed after decoding/encoding.
 
         Args:
             sequences: Token sequences to test
+            attention_masks: Tokens to ignore in sequences
 
         Returns:
             Boolean tensor indicating which sequences reencoded perfectly
         """
+
+        # If any tokens need to be ignored (attention_mask == 0), then recursively call reencodes
+        if attention_masks is not None and (attention_masks == 0).any():
+            return torch.cat(
+                [
+                    self.reencodes(seq[mask == 1][None])
+                    for seq, mask in zip(sequences, attention_masks)
+                ]
+            )
 
         device = sequences.device
 

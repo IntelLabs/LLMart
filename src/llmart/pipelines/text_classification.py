@@ -92,7 +92,7 @@ class AdversarialTextClassificationPipeline(TextClassificationPipeline):
         )
 
         if inf_loss_when_nonreencoding and not self.tokenizer.reencodes(
-            adv_model_inputs["input_ids"]
+            adv_model_inputs["input_ids"], adv_model_inputs["attention_mask"]
         ):
             model_outputs["loss"].fill_(torch.inf)
 

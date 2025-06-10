@@ -15,6 +15,6 @@ args=--max_steps $(max_steps) --lr $(lr)
 all: run
 
 run:
-> uv run whitebox.py $(args) "$(string)"
+> $(RUN_GPU) whitebox.py $(args) "$(string)"
 
 .PHONY: all run

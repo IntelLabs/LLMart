@@ -16,9 +16,9 @@ from accelerate.state import PartialState
 from accelerate.utils import gather, reduce, pad_across_processes
 from accelerate.utils import broadcast_object_list, tqdm
 from accelerate.utils.memory import should_reduce_batch_size
-from torch.optim.optimizer import Optimizer, ParamsT  # type: ignore[reportPrivateImportUsage]
-from torch.optim.sgd import SGD  # type: ignore[reportPrivateImportUsage]
-from torch.optim.adam import Adam  # type: ignore[reportPrivateImportUsage]
+from torch.optim.optimizer import Optimizer, ParamsT
+from torch.optim.sgd import SGD
+from torch.optim.adam import Adam
 
 from llmart.config import OptimConf
 from llmart.pickers import pick_coord_topk, pick_global_topk, pick_unique_swaps
@@ -67,6 +67,7 @@ class GreedyCoordinateGradient(Optimizer):
         n_buffers: Size of the buffer for storing best coordinates.
         ignore_curr_marginals: If True, ignore current token positions.
         ignored_values: Tensor of dictionary entries to ignore.
+        good_token_ids: Tensor of dictionary entries to save.
         embedding: Token embedding matrix.
         world_size: Number of distributed processes.
 
@@ -86,11 +87,14 @@ class GreedyCoordinateGradient(Optimizer):
         n_buffers: int = 1,
         ignore_curr_marginals: bool = False,
         ignored_values: torch.Tensor | None = None,
+        good_token_ids: torch.Tensor | None = None,
         embedding: torch.nn.Module | None = None,
         world_size: int = 1,
     ):
-        if ignored_values is None:
-            ignored_values = torch.LongTensor()
+        if ignored_values is not None and good_token_ids is not None:
+            raise ValueError(
+                "Only one of ignored_values and good_token_ids can be specified."
+            )
 
         defaults = dict(
             negative_only=negative_only,
@@ -139,6 +143,17 @@ class GreedyCoordinateGradient(Optimizer):
 
         self._update_hyperparams()
 
+        if good_token_ids is not None:
+            # Deduplicate good_token_ids and turn them into ignored_values by keeping those token ids that are unique (i.e., bad)
+            good_token_ids = torch.unique(good_token_ids)
+            assert isinstance(good_token_ids, torch.Tensor)
+            indices = torch.arange(self._param.shape[-1])
+            indices, counts = torch.cat([indices, good_token_ids]).unique(
+                return_counts=True
+            )
+            ignored_values = indices[counts == 1]
+        if ignored_values is None:
+            ignored_values = torch.LongTensor()
         self._ignored_values = ignored_values
         self._embedding = embedding
         self._replacements: list[Coordinate] | None = None

@@ -12,6 +12,9 @@ args=--num_steps $(num_steps)
 all: run
 
 run:
-> uv run --with-requirements requirements.txt main.py $(args)
+> $(RUN_GPU) --with-requirements requirements.txt main.py $(args)
 
-.PHONY: all run
+run_notebook:
+> $(RUN_GPU) --with-requirements requirements.txt jupyter execute basic_dev_workflow.ipynb
+
+.PHONY: all run run_notebook

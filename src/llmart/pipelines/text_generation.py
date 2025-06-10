@@ -112,7 +112,9 @@ class AdversarialTextGenerationPipeline(TextGenerationPipeline):
         model_inputs = self.ensure_tensor_on_device(**inputs)
         model_inputs = self.attack(model_inputs)
 
-        model_inputs["reencodes"] = self.tokenizer.reencodes(model_inputs["input_ids"])
+        model_inputs["reencodes"] = self.tokenizer.reencodes(
+            model_inputs["input_ids"], model_inputs["attention_mask"]
+        )
         model_inputs["prompt_text"] = prompt_text
         model_inputs["prompt_mask"] = prompt_mask
         model_inputs["assistant_mask"] = assistant_mask

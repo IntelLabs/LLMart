@@ -12,7 +12,7 @@ args=--num_steps $(num_steps)
 all: run
 
 run:
-> $(RUN_GPU) --with-requirements requirements.txt claim.py $(args)
-> $(RUN_GPU) --with-requirements requirements.txt document.py $(args)
+> wget https://raw.githubusercontent.com/ML-GSAI/LLaDA/f51cb1731f5a40ba35c15e51b6b66b147e689f24/generate.py
+> $(RUN_GPU) --with-requirements requirements.txt main.py $(args)
 
 .PHONY: all run

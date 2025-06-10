@@ -8,7 +8,7 @@ import argparse
 
 import torch
 from tqdm import trange
-from torch.optim import Adam  # type: ignore[reportPrivateImportUsage]
+from torch.optim import Adam
 from collections.abc import MutableMapping
 from transformers import pipeline, PreTrainedTokenizerBase, Pipeline
 from transformers.pipelines.text_generation import ReturnType
@@ -135,7 +135,7 @@ def attack(
             output: MutableMapping = generator(adv_prompt)[0]  # type: ignore
             decoded = output["generated_text"]
         else:
-            output_ids = generator.model.generate(
+            output_ids = generator.model.generate(  # type: ignore[reportCallIssue]
                 inputs_embeds=adv_model_inputs["inputs_embeds"],
                 max_length=100,
                 do_sample=False,

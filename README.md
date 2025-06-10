@@ -11,12 +11,22 @@
 </div>
 
 ## 🆕 Latest updates
-❗Release 2025.04 brings full native support for running **LLM**art on [Intel AI PCs](https://www.intel.com/content/www/us/en/products/docs/processors/core-ultra/ai-pc.html)! This allows AI PC owners to _locally_ and rigorously evaluate the security of their own privately fine-tuned and deployed LLMs.
+❗❗ Release 2025.06 significantly expands the types of models that can be attacked using **LLM**art and adds an image modality attack example that combines **LLM**art with Intel's [MART](https://github.com/IntelLabs/MART) library, as well the first ever attack on a diffusion language model (dLLM)!
 
-❗This release also marks our transition to a `uv`-centric install experience. Enjoy robust, platform agnostic (Windows, Linux) one-line installs by using `uv sync --extra gpu` (for GPUs) or `uv sync --extra xpu` (for Intel XPUs).
+❗New core library support and examples for attacking VLMs. Check out our new [example](examples/vlm) on vision modality attacks against a [computer use model](https://huggingface.co/ByteDance-Seed/UI-TARS-7B-DPO)!
 
+❗New core library support for out-of-the-box attacks against guardrail models and data formats such as [HarmBench](https://github.com/centerforaisafety/HarmBench). Just specify the model and data directly in the command line and press the Enter key!
+```bash
+uv run accelerate launch -m llmart model=harmbench-classifier data=harmbench data.subset=[0]
+```
+
+❗New example for attacking the [LLaDA](https://ml-gsai.github.io/LLaDA-demo/) diffusion large language model. If you're an AI security expert, the conclusion won't suprise you: **LLM**art can crack it in ~10 minutes in our ready-to-run [example](examples/llada)!
+
+❗We made it easier to adapt existing datasets to existing models via the [DataMapper](src/llmart/data.py#L93) abstraction. See [Custom Dataset or DataMapper](#custom-dataset-or-datamapper) for more details!
 <details>
 <summary>Past updates</summary>
+❗Release 2025.04 brings full native support for running **LLM**art on [Intel AI PCs](https://www.intel.com/content/www/us/en/products/docs/processors/core-ultra/ai-pc.html)! This allows AI PC owners to _locally_ and rigorously evaluate the security of their own privately fine-tuned and deployed LLMs. This release also marks our transition to a `uv`-centric install experience. Enjoy robust, platform agnostic (Windows, Linux) one-line installs by using `uv sync --extra gpu` (for GPUs) or `uv sync --extra xpu` (for Intel XPUs).
+
 ❗Release 2025.03 brings a new experimental functionality for letting **LLM**art automatically estimate the maximum usable `per_device_bs`. This can result in speed-ups up to 10x on devices with a sufficient amount of memory! Enable from the command line using `per_device_bs=-1`.
 
 ❗Release 2025.02 brings significant speed-ups to the core library, with zero user involvement.\
@@ -147,31 +157,28 @@ uv run python -m llmart model=llama3.1-70b-instruct model.device=null model.devi
 ## :clipboard: Datasets
 Inspecting and adding a new dataset to **LLM**art only involves a single function that returns a list with the standard Hugging Face conversation format.
 
+### Source code modification
 The `basic` dataset is the simplest instantiation that lives at [`datasets/basic.py`](src/llmart/datasets/basic.py), but is also powerful enough to support custom modifications.
 
 For example, to modify the natural language prompt and desired open-ended response, the following basic edit is sufficient:
 ```diff
 diff src/llmart/datasets/basic.py
-         # Create conversation data structure and mark parts we care about
-         conv = [
--            dict(role="user", content=mark_prompt("Tell me about the planet Saturn.")),
--            dict(role="assistant", content=mark_completion("NO WAY JOSE")),
-+            dict(role="user", content=mark_prompt("Tell me how to do something not allowed.")),
-+            dict(role="assistant", content=mark_completion("Sure, I'll tell you: first, you")),
-         ]
+         example = dict(
+-            prompt="Tell me about the planet Saturn.", completion="NO WAY JOSE"
++            prompt="Tell me how to do something not allowed.", completion="Sure, I'll tell you: first, you"
+         )
 ```
 
 Inducing a closed-ended response can be also directly done by typing out the end of turn token. For example, for the Llama 3 family of models this is:
 ```diff
 diff src/llmart/datasets/basic.py
-         # Create conversation data structure and mark parts we care about
-         conv = [
-             dict(role="user", content=mark_prompt("Tell me about the planet Saturn.")),
--            dict(role="assistant", content=mark_completion("NO WAY JOSE")),
-+            dict(role="assistant", content=mark_completion("NO WAY JOSE<|eot_id|>")),
-         ]
+         example = dict(
+-            prompt="Tell me about the planet Saturn.", completion="NO WAY JOSE"
++            prompt="Tell me about the planet Saturn.", completion="No!<|eot_id|>"
+         )
 ```
 
+### Command-line modification
 **LLM**art also supports loading the [AdvBench](https://github.com/llm-attacks/llm-attacks) dataset, which comes with pre-defined target responses to ensure consistent benchmarks.
 
 Using AdvBench with **LLM**art requires specifying the desired subset of samples to attack. By default, the following command will automatically download the .csv file from its [original source](https://raw.githubusercontent.com/llm-attacks/llm-attacks/refs/heads/main/data/advbench/harmful_behaviors.csv) and use it as a dataset:
@@ -182,11 +189,34 @@ uv run accelerate launch -m llmart model=llama3-8b-instruct data=advbench_behavi
 To train a single adversarial attack on multiple samples, users can specify the exact samples via `data.subset=[0,1]`.
 The above command is also compatible with local modifications of the dataset by including the `dataset.files=/path/to/file.csv` argument.
 
-In the most general case, you can write your own [dataset loading script](https://huggingface.co/docs/datasets/en/dataset_script) and pass it to **LLM**art:
-```bash
-uv run accelerate launch -m llmart model=llama3-8b-instruct data=custom data.path=/path/to/dataset.py
+### Custom Dataset or DataMapper
+In the most general case, you can write your own [dataset loading script](https://huggingface.co/docs/datasets/en/dataset_script) or [DataMapper](src/llmart/data.py#L93) and pass it to **LLM**art. For example, you could write a custom `DataMapper` for the the dataset from [BoN Jailbreaking](https://github.com/jplhughes/bon-jailbreaking/) targeting the [Unispac/Llama2-7B-Chat-Augmented](https://huggingface.co/Unispac/Llama2-7B-Chat-Augmented) model by create a `/tmp/bon_jailbreaks.py` file with the following contents:
+```python
+from llmart import DataMapper
+
+
+class BoNJailbreaksMapper(DataMapper):
+    """ Make text_jailbreaks.csv compatible with Llama2 chat template. """
+    def __call__(self, batch):
+        # batch contains the following keys from text_jailbreaks.csv:
+        # direct_request,behavior_id,experiment,idx,model,augmented_file,response,length,label
+        convs = [
+            [
+                dict(role="user", content=self.modify_prompt(direct_request)),
+                dict(role="assistant", content=self.force_completion(response)),
+            ]
+            for direct_request, response in zip(
+                batch["direct_request"], batch["response"]
+            )
+        ]
+        return dict(conversation=convs)
 ```
-Just make sure you conform to the output format in [`datasets/basic.py`](src/llmart/datasets/basic.py).
+You can then invoke the model
+```bash
+uv run accelerate launch -m llmart model=llama2-7b-deep-alignment data=custom data.path=csv data.files=https://raw.githubusercontent.com/jplhughes/bon-jailbreaking/refs/heads/main/docs/assets/data/text_jailbreaks.csv data.subset=[0] data.mapper=/tmp/bon_jailbreaks.py
+```
+
+See [`datasets/basic.py`](src/llmart/datasets/basic.py) for how to write a custom dataset and/or datamapper.
 
 ## :chart_with_downwards_trend: Optimizers and schedulers
 Discrete optimization for language models [(Lei et al, 2019)](https://proceedings.mlsys.org/paper_files/paper/2019/hash/676638b91bc90529e09b22e58abb01d6-Abstract.html) &ndash; in particular the Greedy Coordinate Gradient (GCG) applied to auto-regressive LLMs [(Zou et al, 2023)](https://arxiv.org/abs/2307.15043) &ndash; is the main focus of [`optim.py`](src/llmart/optim.py).
@@ -216,7 +246,7 @@ If you find this repository useful in your work, please cite:
   author = {Cory Cornelius and Marius Arvinte and Sebastian Szyller and Weilin Xu and Nageen Himayat},
   title = {{LLMart}: {L}arge {L}anguage {M}odel adversarial robutness toolbox},
   url = {http://github.com/IntelLabs/LLMart},
-  version = {2025.04},
+  version = {2025.06},
   year = {2025},
 }
 ```

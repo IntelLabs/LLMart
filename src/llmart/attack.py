@@ -21,7 +21,8 @@ from accelerate import Accelerator, PartialState, find_executable_batch_size
 from accelerate.logging import get_logger
 from accelerate.utils import reduce, tqdm, DataLoaderConfiguration, set_seed
 from accelerate.utils import is_cuda_available, is_xpu_available
-from transformers import PreTrainedModel, pipeline, AutoTokenizer, default_data_collator
+from transformers import PreTrainedModel, pipeline, default_data_collator
+from transformers import PreTrainedTokenizerFast, AutoProcessor, ProcessorMixin
 from transformers.generation.utils import ModelOutput
 from torch.utils.data import DataLoader, RandomSampler
 import torch.nn.functional as F
@@ -65,39 +66,53 @@ def run_attack(cfg: config.LLMartConf) -> dict:
     accelerator.init_trackers(cfg.experiment_name, config=cfg.asdict(flatten=True))
 
     # Setup logging
+    if not accelerator.is_main_process:
+        transformers.logging.disable_progress_bar()
     transformers.logging.set_verbosity_error()
     datasets.utils.disable_progress_bars()
     log = get_logger(__name__)  # type: ignore[reportArgumentType]
     log.info(f"{cfg.output_dir=}")
 
     # Create attack and responses dataset transforms
-    attack_prompt = transforms.from_config(cfg.attack)
-    mask_completion = transforms.from_config(cfg.response)
-    assert isinstance(attack_prompt, AttackPrompt)
+    modify_prompt = transforms.from_config(cfg.attack)
+    force_completion = transforms.from_config(cfg.response)
+    assert isinstance(modify_prompt, AttackPrompt)
 
-    # Create adversarial tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(
+    # Create adversarial processor (or tokenizer if it doesn't exist)
+    processor = AutoProcessor.from_pretrained(
         cfg.model.name,
         revision=cfg.model.revision,
         trust_remote_code=True,
         use_fast=True,
+        **cfg.model.processor_kwargs,
     )
+    if isinstance(processor, ProcessorMixin):
+        tokenizer = getattr(processor, "tokenizer")
+    elif isinstance(processor, PreTrainedTokenizerFast):
+        tokenizer = processor
+        processor = None
+    else:
+        raise NotImplementedError(f"Unknown processor: {processor}")
+
     tokenizer.chat_template = cfg.model.chat_template or tokenizer.chat_template
     tokenizer.clean_up_tokenization_spaces = False
     tokenizer.pad_token = tokenizer.pad_token or tokenizer.eos_token
     tokenizer = TaggedTokenizer(
-        tokenizer,  # type: ignore
-        tags=attack_prompt.tags + mask_completion.tags,
+        tokenizer,
+        tags=modify_prompt.tags + force_completion.tags,
         banned_strings=cfg.banned_strings,
     )
+    if isinstance(processor, ProcessorMixin):
+        setattr(processor, "tokenizer", tokenizer)
 
     # Create data, apply attack transforms to it
     with accelerator.main_process_first():
         ds = data.from_config(
             cfg.data,
             tokenizer=tokenizer,
-            mark_prompt=attack_prompt,
-            mark_completion=mask_completion,
+            processor=processor,
+            modify_prompt=modify_prompt,
+            force_completion=force_completion,
         )
 
     for name in filter(lambda name: len(ds[name]), ds):
@@ -121,6 +136,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
         trust_remote_code=True,
         torch_dtype=cfg.model.torch_dtype,
         tokenizer=tokenizer,
+        processor=processor,
         model_kwargs=dict(),
     )
     model = pipe.model
@@ -130,14 +146,14 @@ def run_attack(cfg: config.LLMartConf) -> dict:
     step, attack = 0, None
     best_step, best_attack = 0, None
     results = dict()
-    if len(attack_prompt.elements) > 0:
+    if len(modify_prompt.elements) > 0:
         if cfg.per_device_bs == -1:
             _train = find_executable_batch_size(train)
         else:
             _train = partial(train, cfg.per_device_bs)
         step, attack, best_step, best_attack, train_results = _train(
             ds,
-            attack_prompt,
+            modify_prompt,
             tokenizer,  # type: ignore
             model,
             cfg,
@@ -171,7 +187,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
 def train(
     per_device_bs: int,
     ds: datasets.DatasetDict,
-    attack_prompt: AttackPrompt,
+    modify_prompt: AttackPrompt,
     tokenizer: TaggedTokenizer,
     model: PreTrainedModel,
     cfg: config.LLMartConf,
@@ -196,7 +212,7 @@ def train(
 
     # Create adversarial attack and losses from tokenized prompt attack
     attack_inits = tokenizer(
-        attack_prompt.elements,
+        modify_prompt.elements,
         add_special_tokens=False,
         return_tensors="pt",
         padding=True,
@@ -259,7 +275,7 @@ def train(
     optimizer = optim.from_config(
         cfg.optim,
         attack.parameters(),
-        ignored_values=tokenizer.bad_token_ids,
+        good_token_ids=tokenizer.good_token_ids,
         embedding=attack.embedding if cfg.attack.dim == 1 else None,
     )
     scheduler = schedulers.from_config(
@@ -280,6 +296,7 @@ def train(
         num_samples=train_bs,
         batch_size=per_device_bs,
         use_kv_cache=cfg.use_kv_cache,
+        ignored_keys=tokenizer.mask_names,
     )
 
     # For each optimization step
@@ -293,16 +310,20 @@ def train(
 
         model_loss, loss, attack_success, attack_count = 0.0, 0.0, 0, 0
         for micro_inputs in data.microbatch(inputs, micro_batch_size=per_device_bs):
-            # Get adversarial version of inputs and compute loss using differentiable embedding
+            # Get adversarial version of inputs and pop adversarial tags
             micro_inputs = attack(micro_inputs)
-            if not tokenizer.reencodes(micro_inputs["input_ids"]).all():
+            micro_inputs = {
+                k: v for k, v in micro_inputs.items() if k not in tokenizer.mask_names
+            }
+
+            # Pop input_ids since we do not want to pass them to the model
+            if not tokenizer.reencodes(
+                micro_inputs.pop("input_ids"), micro_inputs["attention_mask"]
+            ).all():
                 log.warning("Adversarial inputs do not reencode.")
 
-            outputs = model(
-                inputs_embeds=micro_inputs["inputs_embeds"],
-                labels=micro_inputs["labels"],
-                attention_mask=micro_inputs["attention_mask"],
-            )
+            # Compute loss using input_embeds
+            outputs = model(**micro_inputs, use_cache=False)
             local_loss = loss_fn(outputs, micro_inputs["labels"])
             accelerator.backward(local_loss)
 
@@ -375,9 +396,7 @@ def train(
 
             # Exit attack loop if we found a successful attack across all training examples
             if (
-                cfg.early_stop
-                and len(eval_dl) == 1
-                and torch.allclose(success_rate, torch.tensor(1.0))  # type: ignore[reportArgumentType]
+                cfg.early_stop and torch.allclose(success_rate, torch.tensor(1.0))  # type: ignore[reportArgumentType]
             ):
                 # NOTE: We use evaluate because model() can differ from model.generate()
                 outputs = evaluate(eval_dl, tokenizer, model, attack, max_new_tokens=0)
@@ -419,6 +438,10 @@ def train(
         torch.save(accelerator.unwrap_model(attack).state_dict(), attack_path)
         log.info(f"{attack_path=}")
 
+        best_attack_path = f"{cfg.output_dir}/best_attack_{best_step}.pt"
+        torch.save(accelerator.unwrap_model(best_attack).state_dict(), best_attack_path)
+        log.info(f"{best_attack_path=}")
+
     return step, attack, best_step, best_attack, results
 
 
@@ -426,10 +449,11 @@ def make_closure(
     attack: torch.nn.Module,
     model: torch.nn.Module,
     loss_fn: torch.nn.Module,
-    is_valid_input: Callable[[torch.Tensor], torch.Tensor],
+    is_valid_input: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
     num_samples: int = 1,
     batch_size: int = 1,
     use_kv_cache: bool = False,
+    ignored_keys: list[str] | None = None,
 ):
     """Make a closure/generator suitable for passing to the GCG optimizer.
 
@@ -441,11 +465,13 @@ def make_closure(
         batch_size: How many samples batch together
         num_samples: Number of sampples in closure inputs
         use_kv_cache: Whether to use the kv_cache when batched=True
+        ignored_keys: Names of keys to remove from inputs before passing to model
 
     Returns:
         A closure/generator and closure inputs to update before passing closure.
     """
     inputs = {}
+    ignored_keys = ignored_keys or []
 
     def generator():
         """A generator that accumulates attacks on **a single training example** until
@@ -470,25 +496,22 @@ def make_closure(
             if (len(batch["param_idx"]) == batch_size) or (
                 param_idx is None and len(batch["param_idx"])
             ):
-                batch_input_ids = torch.cat(batch["input_ids"])
-                batch_attention_mask = torch.cat(batch["attention_mask"])
-                batch_kv_cache = None
+                batch_param_idx = batch.pop("param_idx")
+
+                # Construct batch by concatenating tensors along batch axis
+                batch = {k: torch.cat(v) for k, v in batch.items()}
                 if kv_cache is not None:
                     batch_kv_cache = copy.deepcopy(kv_cache)
-                    batch_kv_cache.batch_repeat_interleave(batch_input_ids.shape[0])
+                    batch_kv_cache.batch_repeat_interleave(len(batch_param_idx))
+                    batch["past_key_values"] = batch_kv_cache
 
-                outputs = model(
-                    input_ids=batch_input_ids,
-                    attention_mask=batch_attention_mask,
-                    past_key_values=batch_kv_cache,
-                )
-                del batch_kv_cache
+                outputs = model(**batch)
 
                 # Compute per-example loss
                 losses = itertools.starmap(
-                    loss_fn, zip(outputs["logits"], torch.cat(batch["labels"]))
+                    loss_fn, zip(outputs["logits"], batch["labels"])
                 )
-                param_losses = list(zip(batch["param_idx"], losses))
+                param_losses = list(zip(batch_param_idx, losses))
                 del outputs, losses
 
                 # Next iteration will start reaccumulating a batch
@@ -503,20 +526,25 @@ def make_closure(
 
             # Otherwise, attack inputs and make sure they reencode..
             adv_inputs = attack(inputs)
-            if not is_valid_input(adv_inputs["input_ids"]).all():
+            input_map = adv_inputs.pop("input_map")
+            adv_inputs = {k: v for k, v in adv_inputs.items() if k not in ignored_keys}
+            if not is_valid_input(
+                adv_inputs["input_ids"], adv_inputs["attention_mask"]
+            ).all():
                 del adv_inputs
                 continue
 
             # ...compute past key values...
             if use_kv_cache and kv_cache is None:
-                # NOTE: This assumes a batch size of 1
-                kv_cache_len = adv_inputs["input_map"].nonzero()[0, 1]
-                inputs_cache = adv_inputs["input_ids"][:, :kv_cache_len]
-                outputs = model(
-                    input_ids=inputs_cache,
-                    attention_mask=adv_inputs["attention_mask"][:, :kv_cache_len],
-                    use_cache=True,
-                )
+                # Truncate all inputs to cache length by finding first non-zero input map token
+                kv_cache_len = input_map.nonzero()[0, 1].item()
+                cache_inputs = {
+                    k: v[:, :kv_cache_len]
+                    if len(v.shape) > 1 and v.shape[1] == input_map.shape[1]
+                    else v
+                    for k, v in adv_inputs.items()
+                }
+                outputs = model(**cache_inputs, use_cache=True)
                 kv_cache = outputs["past_key_values"]
                 del outputs
 
@@ -528,10 +556,17 @@ def make_closure(
 
             # ...and if they do accumulate a batch
             batch["param_idx"].append(param_idx)
-            batch["input_ids"].append(adv_inputs["input_ids"][:, kv_cache_len:])
-            batch["attention_mask"].append(adv_inputs["attention_mask"])
-            batch["labels"].append(adv_inputs["labels"][:, kv_cache_len:])
-            del adv_inputs
+            for key, value in adv_inputs.items():
+                # Truncate inputs that match kv-cache shape, ignoring attention_mask since
+                # models always need a full attention mask.
+                if (
+                    key not in ("attention_mask",)
+                    and len(value.shape) > 1
+                    and value.shape[1] == input_map.shape[1]
+                ):
+                    value = value[:, kv_cache_len:]
+                batch[key].append(value)
+            del adv_inputs, input_map
 
     def closure():
         """A function that computes the average loss of an attack applied to
@@ -545,16 +580,14 @@ def make_closure(
         loss = 0.0
         for micro_inputs in data.microbatch(inputs, micro_batch_size=batch_size):
             adv_inputs = attack(micro_inputs)
-            if not is_valid_input(adv_inputs["input_ids"]).all():
+            adv_inputs = {k: v for k, v in adv_inputs.items() if k not in ignored_keys}
+            if not is_valid_input(
+                adv_inputs["input_ids"], adv_inputs["attention_mask"]
+            ).all():
                 loss = torch.tensor(torch.inf, device=adv_inputs["input_ids"].device)
                 break
             else:
-                outputs = model(
-                    input_ids=adv_inputs["input_ids"],
-                    attention_mask=adv_inputs["attention_mask"],
-                    labels=micro_inputs["labels"],
-                    use_cache=False,
-                )
+                outputs = model(**adv_inputs, use_cache=False)
                 micro_loss = loss_fn(outputs, micro_inputs["labels"])
                 # Accumulate averages across micro-batches
                 # NOTE: Assumes equal distribution of micro-batch across devices
@@ -607,47 +640,54 @@ def evaluate(
 
     for i, inputs in enumerate(dataloader):
         assert len(inputs["input_ids"]) == 1
+        # Remove non-attended items
+        attention_mask = inputs["attention_mask"]
+        inputs = {
+            k: v[attention_mask == 1][None] if v.shape == attention_mask.shape else v
+            for k, v in inputs.items()
+        }
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
         inputs = attack(inputs) if attack else inputs
-        input_ids = inputs["input_ids"][0]
-        attention_mask = inputs["attention_mask"][0]
-        response_mask = inputs["response_mask"][0]
+        response_mask = inputs.pop("response_mask")
+        inputs = {k: v for k, v in inputs.items() if k not in tokenizer.mask_names}
 
         # Measure teacher forcing loss
-        output_tf = model(
-            input_ids=inputs["input_ids"],
-            labels=inputs["labels"],
-            attention_mask=inputs["attention_mask"],
-        )
+        output_tf = model(**inputs)
         loss_tf = output_tf["loss"]
 
+        # Truncate all inputs to prompt length by finding first response index
+        prompt_end = response_mask.nonzero()[0, 1].item()
+        gen_inputs = {
+            k: v[:, :prompt_end]
+            if len(v.shape) > 1 and v.shape[1] == response_mask.shape[1]
+            else v
+            for k, v in inputs.items()
+        }
+
         # Decode prompt
-        prompt_end = response_mask.nonzero()[0, 0]
-        prompt_ids = input_ids[:prompt_end]
-        prompt = tokenizer.decode(prompt_ids)
+        prompt = tokenizer.decode(gen_inputs["input_ids"][0])
         log.info(f"{prompt=}") if log else None
 
         # Deterministically generate a response using prompt_ids
-        output = model.generate(
-            inputs=prompt_ids[None],
-            attention_mask=attention_mask[:prompt_end][None],
+        output = model.generate(  # type: ignore[reportCallIssue]
+            **gen_inputs,
             do_sample=False,
             temperature=None,
             top_p=None,
-            min_new_tokens=len(response_mask) - len(prompt_ids),
-            max_new_tokens=max(max_new_tokens, len(response_mask) - len(prompt_ids)),
+            eos_token_id=None,
+            max_new_tokens=max(max_new_tokens, response_mask.shape[1] - prompt_end),
             return_dict_in_generate=True,
             output_logits=True,
             return_legacy_cache=False,
         )
 
         # Decode continuation of prompt
-        continuation_ids = output.sequences[0]  # type: ignore
+        continuation_ids = output.sequences[0, prompt_end:]  # type: ignore
         continuation = tokenizer.decode(continuation_ids)
 
         # Compute loss
-        targets = input_ids[prompt_end:]
-        continuation_mask = response_mask[prompt_end:]
+        targets = inputs["input_ids"][0, prompt_end:]
+        continuation_mask = response_mask[0, prompt_end:]
 
         logits = torch.cat(output.logits)  # type: ignore
         logits = logits[: len(targets)]

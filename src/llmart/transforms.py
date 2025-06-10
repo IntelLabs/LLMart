@@ -9,7 +9,6 @@ import torch
 from copy import deepcopy
 from typing import TypeAlias, overload
 from abc import ABC, abstractmethod
-from transformers import PreTrainedTokenizerBase
 
 from .config import ResponseConf, AttackConf
 from .tokenizer import BEGIN_TAG_FORMAT, END_TAG_FORMAT
@@ -153,87 +152,28 @@ class MaskCompletion(Transform):
 
     Args:
         replace_with: Optional text to replace response content
+        prefix: Optional text to prepend to the response content
+        suffix: Optional text to append to the response content
     """
 
     def __init__(
         self,
         replace_with: str | None = None,
+        prefix: str | None = None,
+        suffix: str | None = None,
     ):
         super().__init__(conv_role="assistant")
         self.replace_with = replace_with
+        self.prefix = prefix or ""
+        self.suffix = suffix or ""
 
         # create amortize response tag
         self._wrap(response="")
 
     def transform(self, conv: str) -> str:
-        return self._wrap(response=self.replace_with or conv)
-
-
-class ConversationMapper:
-    """Maps conversations using transforms and tokenizes using apply_chat_template.
-
-    Args:
-        tokenizer: Tokenizer instance
-        *transforms: Transform instances to apply
-        labels_mask_name: Name of labels mask in outputs
-        **apply_chat_template_kwargs: Additional args for chat template
-    """
-
-    def __init__(
-        self,
-        tokenizer: PreTrainedTokenizerBase,
-        *transforms: Transform,
-        labels_mask_name: str = "response_mask",
-        **apply_chat_template_kwargs,
-    ):
-        self.tokenizer = tokenizer
-        self.transforms = transforms
-        self.labels_mask_name = labels_mask_name
-        self.apply_chat_template_kwargs = apply_chat_template_kwargs
-
-        self.reencodes = getattr(tokenizer, "reencodes")
-        if not callable(self.reencodes):
-            self.reencodes = lambda x: torch.tensor(True) or x
-
-    def __call__(self, conversations: list[Conversation]) -> dict[str, torch.Tensor]:
-        """Process conversations through transforms and tokenization.
-
-        Args:
-            conversations: List of conversation dictionaries
-
-        Returns:
-            Dict with tokenized inputs and labels
-
-        Raises:
-            ValueError: If tokens cannot be re-encoded
-        """
-
-        # Apply data transforms to each conversation
-        for t in self.transforms:
-            conversations = [t(conv) for conv in conversations]
-
-        # Tokenize a conversation
-        inputs: dict[str, torch.Tensor] = self.tokenizer.apply_chat_template(  # type: ignore
-            conversations,
-            padding=True,
-            return_tensors="pt",
-            return_dict=True,
-            **self.apply_chat_template_kwargs,
+        return self._wrap(
+            response=self.prefix + (self.replace_with or conv) + self.suffix
         )
-
-        if not self.reencodes(inputs["input_ids"]).all():
-            raise ValueError(
-                "There is some set of tokens in the conversation that do not re-encode."
-            )
-
-        # We only care about loss of response slice, so we set non-response token labels to
-        # the ignore_index value (which is -100 by default)
-        if self.labels_mask_name in inputs:
-            label_ids = inputs["input_ids"].clone()
-            label_ids[~inputs[self.labels_mask_name]] = -100
-            inputs["labels"] = label_ids
-
-        return inputs
 
 
 def from_config(cfg: ResponseConf | AttackConf) -> Transform:
@@ -247,7 +187,7 @@ def from_config(cfg: ResponseConf | AttackConf) -> Transform:
     """
 
     if isinstance(cfg, ResponseConf):
-        return MaskCompletion(cfg.replace_with)
+        return MaskCompletion(cfg.replace_with, cfg.prefix, cfg.suffix)
 
     if isinstance(cfg, AttackConf):
         return AttackPrompt(

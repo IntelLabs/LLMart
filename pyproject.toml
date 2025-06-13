@@ -25,7 +25,7 @@ gpu = [
 ]
 
 xpu = [
-    "torch==2.7.0+xpu",
+    "torch==2.7.1",
     "pytorch-triton-xpu==3.3.0",
     "llmart[core]",
 ]

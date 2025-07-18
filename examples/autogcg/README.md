@@ -1,5 +1,5 @@
 ## Basics and requirements
-Install `llmart`and download/navigate to this folder. Run `pip install -r requirements.txt` in the working environment.
+Install `llmart`and download/navigate to this folder. Run `uv pip install -r requirements.txt` in the working environment.
 
 
 # `autoGCG` with `llmart`
@@ -9,7 +9,7 @@ We call this functionality `autoGCG` -- automated greedy coordinate descent.
 
 To run `autoGCG` on the `i`-th sample of the [AdvBench behavior](https://github.com/llm-attacks/llm-attacks/blob/main/data/advbench/harmful_behaviors.csv) dataset execute:
 ```bash
-python main.py --subset i
+uv run python main.py --subset i
 ```
 
 The script will automatically use the maximum number of GPUs and parallelize hyper-parameter tuning for the `n_tokens` hyper-parameter of GCG using `llmart`'s a [ChangeOnPlateauInteger](../../src/llmart/schedulers.py#L279) scheduler.

@@ -1,10 +1,10 @@
 # Basics and requirements
-Install `llmart`, download/navigate to this folder, and run `pip install -r requirements.txt`.
+Install `llmart`, download/navigate to this folder, and run `uv pip install -r requirements.txt`.
 
 If this is the first time running this example on a machine and an error related to `ntlk` occurs, it can be resolved by manually running:
 ```bash
-pip install nltk==3.9.1
-python -m nltk.downloader "punkt_tab"
+uv pip install nltk==3.9.1
+uv run python -m nltk.downloader "punkt_tab"
 ```
 
 ## White-box attacks with `llmart`
@@ -16,8 +16,8 @@ MiniCheck repository: https://github.com/Liyan06/MiniCheck
 
 Given a claim and a document, appending adversarial suffixes for either can be run using the commands:
 ```bash
-python document.py
-python claim.py
+uv run python document.py
+uv run python claim.py
 ```
 
 > [!NOTE]

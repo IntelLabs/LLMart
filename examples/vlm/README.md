@@ -1,6 +1,6 @@
 # Adversarial images against agentic AI for computer use
 
-The attack produces adversarial examples of "The Scream" image that force the UI-TARS-2B model to pop `calc.exe`.
+The attack produces adversarial examples of "The Scream" image that force the UI-TARS-2B model to open `calc.exe`.
 
 
 ![Screenshot of user's computer](./assets/computer_use_agent_scream.jpg)
@@ -14,13 +14,10 @@ With the screenshot,
 
 ## Steps
 Reproduce the results in about 10 minutes by running the following commands.
-1. Install dependency.
-`pip install -r requirements.txt`
+1. Install dependencies using `uv pip install -r requirements.txt`.
 
-2. Run attack.
-`CUDA_VISIBLE_DEVICES=0 python main.py`
+2. Run attack using `uv run python main.py`.
 
-3. View results in Tensorboard.
-`tensorboard --logdir ./logs`
+3. View results in Tensorboard using `uv run tensorboard --logdir ./logs`.
 
-You can specify a different starting image by `CUDA_VISIBLE_DEVICES=0 python main.py --init_image_url ...`
+You can specify a different starting image by the `... main.py --init_image_url ...` argument.

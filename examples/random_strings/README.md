@@ -9,12 +9,12 @@ tr -dc 'A-Za-z0-9!#%&'\''()*+,-./:;<=>?@[\]^_{|}~' </dev/urandom | head -c 10; e
 
 Using the output, we can optimize an adversarial suffix that forces this response via:
 ```bash
-python whitebox.py "O4c9I=9*ih"
+uv run python whitebox.py "O4c9I=9*ih"
 ```
 
 Any string passed as argument will be the target. Longer strings will typically require significantly more optimization steps:
-```
-python whitebox.py "r*7It0Z>Mg-qoYip-]Ji;|'bcq;}b;Mm^'|Cq0+0U!!dfO6q(p}el*N8Nvu(T4xK<m;k{?qab(OgCP:0;Uk_@/q}se#cYx.P1" --max_steps=20000
+```bash
+uv run python whitebox.py "r*7It0Z>Mg-qoYip-]Ji;|'bcq;}b;Mm^'|Cq0+0U!!dfO6q(p}el*N8Nvu(T4xK<m;k{?qab(OgCP:0;Uk_@/q}se#cYx.P1" --max_steps=20000
 ```
 
 See `more_strings.txt` for more pre-generated random strings. You can customize other hyper-parameters via CLI arguments:

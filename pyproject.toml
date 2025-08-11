@@ -31,7 +31,7 @@ xpu = [
 ]
 
 dev = [
-    "pre-commit==4.1.0",
+    "pre-commit==4.3.0",
     "basedpyright==1.28.1",
     "pytest==8.3.2",
     "ruff==0.11.0",

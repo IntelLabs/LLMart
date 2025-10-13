@@ -16,7 +16,7 @@ core = [
     "accelerate==1.6.0",
     "transformers[sentencepiece,torch-vision]==4.52.4",
     "tensorboard==2.18.0",
-    "datasets==3.1.0",
+    "datasets==4.2.0",
 ]
 
 gpu = [

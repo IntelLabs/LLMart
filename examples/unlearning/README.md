@@ -8,12 +8,12 @@ The goal is to find a prefix that, given a prompt, produces a desired output eve
 
 Running the example is done by:
 ```sh
-python whitebox.py "Who is Harry Potter?" "Harry Potter is the main protagonist in J.K. Rowling's series of fantasy novels"`
+uv run python whitebox.py "Who is Harry Potter?" "Harry Potter is the main protagonist in J.K. Rowling's series of fantasy novels"`
 ```
 
 By default, the attack is optimized in the embedding space (soft tokens). If you want to use the hard tokens instead, run the script with `--use_hard_tokens`:
 ```sh
-python whitebox.py "Who is Harry Potter?" "Harry Potter is the main protagonist in J.K. Rowling's series of fantasy novels" --use_hard_tokens --max_steps=1000
+uv run python whitebox.py "Who is Harry Potter?" "Harry Potter is the main protagonist in J.K. Rowling's series of fantasy novels" --use_hard_tokens --max_steps=1000
 ```
 
 For the soft token attack, this will output (note that soft tokens cannot be mapped to hard tokens; printed characters correspond to the decoded nearest embeddings):
@@ -45,10 +45,10 @@ options:
   --use_hard_tokens     Find hard tokens instead of soft tokens in the emebdding space.
 ```
 
-You can test out other promp-completion combinations with the following commands, or try your own:
+You can test out other prompt+completion combinations with the following commands, or try your own:
 ```bash
-python whitebox.py "Popular magical creatures in the Harry Potter world are", "1. Dragons 2. Unicorns",
-python whitebox.py "To get to Hogwarts School of Witchcraft and Wizardry, you have to", "take the Hogwarts Express from Platform 9 3/4 at King's Cross Station in London.",
-python whitebox.py "Quidditch positions in the Harry Potter universe include", "Quaffle: a ball that is the main objective of the game, and is carried and thrown by players. Beater: a player who tries to knock the Quaffle out of the opposing team's possession",
-python whitebox.py "Common magical subjects taught at Hogwarts in Harry Potter are", "Charms, Transfiguration, Potions, and Divination",
+uv run python whitebox.py "Popular magical creatures in the Harry Potter world are", "1. Dragons 2. Unicorns",
+uv run python whitebox.py "To get to Hogwarts School of Witchcraft and Wizardry, you have to", "take the Hogwarts Express from Platform 9 3/4 at King's Cross Station in London.",
+uv run python whitebox.py "Quidditch positions in the Harry Potter universe include", "Quaffle: a ball that is the main objective of the game, and is carried and thrown by players. Beater: a player who tries to knock the Quaffle out of the opposing team's possession",
+uv run python whitebox.py "Common magical subjects taught at Hogwarts in Harry Potter are", "Charms, Transfiguration, Potions, and Divination",
 ```

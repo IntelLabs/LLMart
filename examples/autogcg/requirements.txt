@@ -1,3 +1,3 @@
-ray[tune]==2.50.0
+ray[tune]==2.53.0
 fire==0.7.0
 HEBO==0.3.6

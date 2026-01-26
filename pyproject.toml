@@ -14,7 +14,7 @@ core = [
     "hydra-core==1.3.2",
     "hydra-colorlog==1.2.0",
     "accelerate==1.6.0",
-    "transformers[sentencepiece,torch-vision]==4.52.4",
+    "transformers[sentencepiece,torch-vision]==5.0.0",
     "tensorboard==2.18.0",
     "datasets==3.1.0",
 ]

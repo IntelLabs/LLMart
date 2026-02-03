@@ -128,7 +128,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
 
     # Load demo models
     pipe = pipeline(
-        task=cfg.model.task,
+        task=cfg.model.task,  # type: ignore[reportArgumentType]
         model=cfg.model.name,
         revision=cfg.model.revision,
         device=cfg.model.device,

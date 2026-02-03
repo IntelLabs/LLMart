@@ -42,7 +42,7 @@ def attack(
 
     # We're running a suffix attack with 2 adversarial tokens
     adv_classifier = pipeline(
-        task="adv-text-classification",
+        task="adv-text-classification",  # type: ignore[reportArgumentType]
         model=classifier.model,
         tokenizer=classifier.tokenizer,
         attack=AttackPrompt(suffix=suffix_length, default_token=suffix_init),

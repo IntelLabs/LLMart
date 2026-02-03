@@ -52,7 +52,7 @@ def attack(suffix=6, n_swaps=1024, n_tokens=1, num_steps=1000, per_device_bs=64)
 
     # Attack pipeline
     adv_pipe = pipeline(
-        "adv-text-generation",
+        "adv-text-generation",  # type: ignore[reportArgumentType]
         model=pipe.model.requires_grad_(False),
         tokenizer=pipe.tokenizer,
         attack=AttackPrompt(suffix=suffix),

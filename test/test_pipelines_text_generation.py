@@ -14,7 +14,7 @@ from llmart import AttackPrompt
 @pytest.fixture
 def pipe():
     pipe = pipeline(
-        "adv-text-generation",
+        "adv-text-generation",  # type: ignore[reportArgumentType]
         model="hf-internal-testing/tiny-gpt2-with-chatml-template",
         attack=AttackPrompt(suffix=20),
         model_kwargs=dict(),

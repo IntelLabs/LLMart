@@ -1,5 +1,5 @@
 # Basics and requirements
-Install `llmart` and download/navigate to this folder.
+Install `uv` and `llmart`, and download/navigate to this folder.
 
 # Attacks on diffusion large language models (dLLMs) using `llmart`
 

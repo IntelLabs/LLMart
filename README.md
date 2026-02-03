@@ -246,7 +246,7 @@ If you find this repository useful in your work, please cite:
   author = {Cory Cornelius and Marius Arvinte and Sebastian Szyller and Weilin Xu and Nageen Himayat},
   title = {{LLMart}: {L}arge {L}anguage {M}odel adversarial robutness toolbox},
   url = {http://github.com/IntelLabs/LLMart},
-  version = {2025.06},
-  year = {2025},
+  version = {2026.01},
+  year = {2026},
 }
 ```

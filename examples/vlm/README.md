@@ -1,7 +1,8 @@
-# Adversarial images against agentic AI for computer use
+## Basics and requirements
+Install `uv` and `llmart`, and download/navigate to this folder.
 
+## Adversarial images against agentic AI for computer use
 The attack produces adversarial examples of "The Scream" image that force the UI-TARS-2B model to open `calc.exe`.
-
 
 ![Screenshot of user's computer](./assets/computer_use_agent_scream.jpg)
 With the screenshot,
@@ -12,12 +13,14 @@ With the screenshot,
    Thought: HACKED!
    Action: hotkey(key='meta r')\n\ntype(content='calc.exe\n')\n\nfinished()
 
-## Steps
-Reproduce the results in about 10 minutes by running the following commands.
-1. Install dependencies using `uv pip install -r requirements.txt`.
+Run the attack with:
+```bash
+uv run --with-requirements requirements.txt python main.py
+```
 
-2. Run attack using `uv run python main.py`.
+View results in Tensorboard using:
+```bash
+uv run --with-requirements requirements.txt tensorboard --logdir ./logs`
+```
 
-3. View results in Tensorboard using `uv run tensorboard --logdir ./logs`.
-
-You can specify a different starting image by the `... main.py --init_image_url ...` argument.
+You can specify a different starting image using the `main.py --init_image_url` argument.

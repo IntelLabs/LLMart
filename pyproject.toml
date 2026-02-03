@@ -1,6 +1,6 @@
 [project]
 name = "llmart"
-version = "2026.01"
+version = "2026.01.1"
 description = "LLMart"
 authors = []
 readme = "README.md"

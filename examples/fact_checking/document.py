@@ -59,7 +59,7 @@ def attack(
 
     # Attack pipeline
     adv_pipe = pipeline(
-        "adv-text-generation",
+        "adv-text-generation",  # type: ignore[reportArgumentType]
         model=pipe.model.requires_grad_(False),
         tokenizer=pipe.tokenizer,
         attack=AttackPrompt(

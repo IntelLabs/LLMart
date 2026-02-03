@@ -77,7 +77,7 @@ def attack(
 ) -> tuple[bool, tuple[str, str]]:
     torch.manual_seed(seed)
     adv_generator = pipeline(
-        task="adv-text-generation",
+        task="adv-text-generation",  # type: ignore[reportArgumentType]
         model=generator.model,
         tokenizer=generator.tokenizer,
         attack=AttackPrompt(prefix=prefix_len, default_token=" @"),

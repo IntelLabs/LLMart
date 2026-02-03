@@ -184,7 +184,7 @@ def main(
         )
 
     adv_pipe = pipeline(  # pyright: ignore [reportArgumentType]
-        task="adv-image-text-to-loss",
+        task="adv-image-text-to-loss",  # type: ignore[reportArgumentType]
         model=pipe.model,
         # do not reuse the processor, because we will add the TaggedTokenizer in the processor.
         processor=AutoProcessor.from_pretrained(

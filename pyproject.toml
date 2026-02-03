@@ -20,13 +20,13 @@ core = [
 ]
 
 gpu = [
-    "torch==2.7.0",
+    "torch==2.8.0",
     "llmart[core]",
 ]
 
 xpu = [
-    "torch==2.7.0+xpu",
-    "pytorch-triton-xpu==3.3.0",
+    "torch==2.8.0+xpu",
+    "pytorch-triton-xpu==3.4.0",
     "llmart[core]",
 ]
 

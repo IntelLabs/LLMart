@@ -8,5 +8,5 @@ uv run --with-requirements requirements.txt jupyter server
 
 Followed by opening the notebook. Alternatively, you can run the standalone [script](main.py) using:
 ```bash
-uv run --with-requirements requirements.txt python main.py
+uv run --with-requirements requirements.txt main.py
 ```

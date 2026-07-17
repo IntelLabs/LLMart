@@ -15,7 +15,7 @@ With the screenshot,
 
 Run the attack with:
 ```bash
-uv run --with-requirements requirements.txt python main.py
+uv run --with-requirements requirements.txt main.py
 ```
 
 View results in Tensorboard using:

@@ -3,7 +3,7 @@ Install `uv` and `llmart`, and download/navigate to this folder.
 
 If this is the first time running this example on a machine and an error related to `ntlk` occurs, it can be resolved by manually running:
 ```bash
-uv run --with nltk==3.9.1 python -m nltk.downloader "punkt_tab"
+uv run --with nltk==3.9.1 -m nltk.downloader "punkt_tab"
 ```
 
 ## White-box attacks with `llmart`
@@ -15,8 +15,8 @@ MiniCheck repository: https://github.com/Liyan06/MiniCheck
 
 Given a claim and a document, appending adversarial suffixes for either can be run using the commands:
 ```bash
-uv run --with-requirements requirements.txt python document.py
-uv run --with-requirements requirements.txt python claim.py
+uv run --with-requirements requirements.txt document.py
+uv run --with-requirements requirements.txt claim.py
 ```
 
 > [!NOTE]

@@ -1,2 +1,2 @@
-jupyterlab[docs-screenshots]==4.5.9
+jupyterlab[docs-screenshots]==4.5.10
 fire==0.7.0

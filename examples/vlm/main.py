@@ -130,10 +130,10 @@ def main(
             processor,
             max_pixels=max_pixels,
             size=None,  # Newer transformers redefine the keys in size, so we make it empty and fallback to min_pixels and max_pixels.
-            use_fast=True,  # Use fast (and differentiable) image processing.
+            backend="torchvision",  # Use differentiable image processing.
         ),
         revision=revision,
-        torch_dtype=torch.bfloat16,
+        dtype=torch.bfloat16,
         generate_kwargs=dict(
             do_sample=False,
             max_new_tokens=1000,
@@ -191,7 +191,7 @@ def main(
             processor,
             max_pixels=max_pixels,
             size=None,  # newer transformers redefine the keys in size, so we make it empty and fallback to min_pixels and max_pixels.
-            use_fast=True,  # use fast (and differentiable) image processing.
+            backend="torchvision",  # Use differentiable image processing.
         ),
         image_attack=image_attack,
     )

@@ -65,7 +65,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         # "word <|tag|>" -> "word<|tag|>"
         self.add_special_tokens(
             {
-                "additional_special_tokens": [
+                "extra_special_tokens": [
                     AddedToken(
                         tag,
                         special=True,
@@ -75,7 +75,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
                     for tag in tags or []
                 ]  # type: ignore
             },
-            replace_additional_special_tokens=False,
+            replace_extra_special_tokens=False,
         )
         self.tags = tags or []
         self.banned_strings = banned_strings or []
@@ -236,6 +236,10 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
 
                 tag_id = tagged_input_ids[start]
                 content = tagged_input_ids[start + 1 : stop]
+                decoded_content = self.decode(
+                    content, clean_up_tokenization_spaces=False
+                )
+                assert isinstance(decoded_content, str)
 
                 # Find location of content in inputs
                 i = self._index_of(content, in_seq=input_ids)
@@ -243,7 +247,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
                 # Special case for tokenizers that add spaces to beginning of tokens. We try to find a match
                 # for the first <token> using <space><token>.
                 content_with_space: torch.Tensor = self.encode(  # type: ignore
-                    " " + self.decode(content, clean_up_tokenization_spaces=False),
+                    " " + decoded_content,
                     add_special_tokens=False,
                     return_tensors="pt",
                 )[0]
@@ -257,7 +261,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
                 # Special case for when we don't find anything. We try to find a match for the first <token>
                 # using <newline><token>.
                 content_with_newline: torch.Tensor = self.encode(  # type: ignore
-                    "\n" + self.decode(content, clean_up_tokenization_spaces=False),
+                    "\n" + decoded_content,
                     add_special_tokens=False,
                     return_tensors="pt",
                 )[0]
@@ -375,8 +379,14 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         #       so we add special cases here.
         #       See: https://github.com/huggingface/tokenizers/issues/1237
         if self._adds_prefix_space:
-            for special_token in self.all_special_tokens:
-                decoded = decoded.replace(f"{special_token} ", f"{special_token}")
+            decoded_texts = [decoded] if isinstance(decoded, str) else decoded
+            for i, decoded_text in enumerate(decoded_texts):
+                for special_token in self.all_special_tokens:
+                    decoded_text = decoded_text.replace(
+                        f"{special_token} ", f"{special_token}"
+                    )
+                decoded_texts[i] = decoded_text
+            decoded = decoded_texts[0] if isinstance(decoded, str) else decoded_texts
 
         return decoded
 
@@ -484,9 +494,10 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         # and any other special token is red
         from colorlog import escape_codes
 
-        if self.additional_special_tokens_ids is None:
+        extra_special_tokens_ids = self.extra_special_tokens_ids
+        if not isinstance(extra_special_tokens_ids, list):
             raise ValueError(
-                "additional_special_tokens_ids is None, please check the tokenizer!"
+                "extra_special_tokens_ids is not a list, please check the tokenizer!"
             )
 
         colors = {
@@ -494,7 +505,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
             if self.convert_ids_to_tokens(int(token_id))
             == (BEGIN_TAG_FORMAT % "response")
             else escape_codes.escape_codes["bg_52"]  # dark red
-            for token_id in self.additional_special_tokens_ids
+            for token_id in extra_special_tokens_ids
         }
         colors[0] = escape_codes.escape_codes["reset"]
         colors = [colors[token_id] for token_id in sequence_map]
@@ -502,6 +513,7 @@ class TaggedTokenizer(PreTrainedTokenizerFast):
         # Turn tokens into colored tokens according to color map above taking care to
         # escape newlines
         tokens = self.convert_ids_to_tokens(sequence)
+        assert isinstance(tokens, list)
         tokens = [ct for color_token in zip(colors, tokens) for ct in color_token]
         decoded = self.convert_tokens_to_string(tokens)
         return decoded.replace("\n", "\\n")

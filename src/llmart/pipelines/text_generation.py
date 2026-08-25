@@ -14,6 +14,8 @@ from .. import TaggedTokenizer, AttackPrompt, AdversarialAttack
 
 
 class AdversarialTextGenerationPipeline(TextGenerationPipeline):
+    framework = "pt"
+
     def __init__(self, *args, attack: AttackPrompt, **kwargs):
         super().__init__(*args, **kwargs)
         if self.framework != "pt":

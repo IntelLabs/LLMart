@@ -5,6 +5,8 @@
 #
 
 import torch
+from typing import cast
+from transformers import BatchEncoding
 
 from llmart import DataMapper
 from .basic import BasicBuilder
@@ -85,18 +87,29 @@ class UITARSSampleMapper(DataMapper):
         ]
 
         # Turn conversation into inputs_ids and masks
-        inputs = self.processor.apply_chat_template(  # type: ignore[reportCallIssue]
-            convs, padding=True, return_tensors="pt", return_dict=True, tokenize=True
+        inputs = cast(
+            BatchEncoding,
+            self.processor.apply_chat_template(
+                convs,
+                padding=True,
+                return_tensors="pt",
+                return_dict=True,
+                tokenize=True,
+            ),
         )
 
         # Add batch axis to tensor values (e.g., pixel_values)
-        for key in inputs:
-            if isinstance(inputs[key], torch.Tensor) and len(inputs[key]) != 1:
-                inputs[key] = inputs[key][None]
+        for key, value in inputs.items():
+            if isinstance(value, torch.Tensor) and len(value) != 1:
+                inputs[key] = value[None]
 
         # Construct labels from response_mask
-        response_mask = inputs["response_mask"]  # type: ignore
-        inputs["labels"] = inputs["input_ids"].clone()  # type: ignore
-        inputs["labels"][~response_mask] = -100  # type: ignore
+        response_mask = inputs["response_mask"]
+        input_ids = inputs["input_ids"]
+        assert isinstance(response_mask, torch.Tensor)
+        assert isinstance(input_ids, torch.Tensor)
+        labels = input_ids.clone()
+        labels[~response_mask] = -100
+        inputs["labels"] = labels
 
         return inputs.data

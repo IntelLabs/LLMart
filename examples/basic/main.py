@@ -40,7 +40,7 @@ def attack(
         "meta-llama/Meta-Llama-3-8B-Instruct",
         revision="5f0b02c75b57c5855da9ae460ce51323ea669d8a",
         device_map="auto",
-        torch_dtype="bfloat16",
+        dtype="bfloat16",
     )
     tokenizer = AutoTokenizer.from_pretrained(
         "meta-llama/Meta-Llama-3-8B-Instruct",

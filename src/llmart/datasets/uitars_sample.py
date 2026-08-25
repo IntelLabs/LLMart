@@ -86,7 +86,7 @@ class UITARSSampleMapper(DataMapper):
         ]
 
         # Turn conversation into inputs_ids and masks
-        inputs: BatchFeature = self.processor.apply_chat_template(  # pyright: ignore[reportAssignmentType]
+        inputs: BatchFeature = self.processor.apply_chat_template(  # type: ignore[reportAssignmentType]
             convs, padding=True, return_tensors="pt", return_dict=True, tokenize=True
         )
 

@@ -49,8 +49,8 @@ class MllamaSampleMapper(DataMapper):
         ]
 
         # Turn conversation into inputs_ids and masks
-        inputs: BatchFeature = self.processor.apply_chat_template(  # pyright: ignore[reportAssignmentType]
-            convs,  # pyright: ignore[reportArgumentType]
+        inputs: BatchFeature = self.processor.apply_chat_template(  # type: ignore[reportAssignmentType]
+            convs,  # type: ignore[reportArgumentType]
             padding=True,
             return_tensors="pt",
             return_dict=True,

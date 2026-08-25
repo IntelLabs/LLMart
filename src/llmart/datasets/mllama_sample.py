@@ -5,8 +5,7 @@
 #
 
 import torch
-from typing import cast
-from transformers import BatchEncoding
+from transformers import BatchFeature
 
 from llmart import DataMapper
 from .basic import BasicBuilder
@@ -50,29 +49,22 @@ class MllamaSampleMapper(DataMapper):
         ]
 
         # Turn conversation into inputs_ids and masks
-        inputs = cast(
-            BatchEncoding,
-            self.processor.apply_chat_template(
-                convs,  # pyright: ignore[reportArgumentType]
-                padding=True,
-                return_tensors="pt",
-                return_dict=True,
-                tokenize=True,
-            ),
+        inputs: BatchFeature = self.processor.apply_chat_template(  # pyright: ignore[reportAssignmentType]
+            convs,  # pyright: ignore[reportArgumentType]
+            padding=True,
+            return_tensors="pt",
+            return_dict=True,
+            tokenize=True,
         )
 
         # Add batch axis to tensor values (e.g., pixel_values)
-        for key, value in inputs.items():
-            if isinstance(value, torch.Tensor) and len(value) != 1:
-                inputs[key] = value[None]
+        for key in inputs:
+            if isinstance(inputs[key], torch.Tensor) and len(inputs[key]) != 1:
+                inputs[key] = inputs[key][None]
 
         # Construct labels from response_mask
         response_mask = inputs["response_mask"]
-        input_ids = inputs["input_ids"]
-        assert isinstance(response_mask, torch.Tensor)
-        assert isinstance(input_ids, torch.Tensor)
-        labels = input_ids.clone()
-        labels[~response_mask] = -100
-        inputs["labels"] = labels
+        inputs["labels"] = inputs["input_ids"].clone()
+        inputs["labels"][~response_mask] = -100
 
         return inputs.data

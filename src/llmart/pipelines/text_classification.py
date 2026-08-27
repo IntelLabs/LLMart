@@ -16,6 +16,8 @@ from .. import TaggedTokenizer, AttackPrompt, AdversarialAttack
 
 
 class AdversarialTextClassificationPipeline(TextClassificationPipeline):
+    framework = "pt"
+
     def __init__(
         self,
         *args,
@@ -66,6 +68,7 @@ class AdversarialTextClassificationPipeline(TextClassificationPipeline):
 
         model_inputs = super().preprocess(adv_inputs, **preprocess_kwargs)
         assert isinstance(model_inputs, BatchEncoding)
+        assert self.model.config.label2id is not None
         model_inputs["labels"] = torch.tensor(
             [self.model.config.label2id[label]], dtype=torch.long
         )

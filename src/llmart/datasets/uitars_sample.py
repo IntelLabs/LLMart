@@ -5,6 +5,7 @@
 #
 
 import torch
+from transformers import BatchFeature
 
 from llmart import DataMapper
 from .basic import BasicBuilder
@@ -85,7 +86,7 @@ class UITARSSampleMapper(DataMapper):
         ]
 
         # Turn conversation into inputs_ids and masks
-        inputs = self.processor.apply_chat_template(  # type: ignore[reportCallIssue]
+        inputs: BatchFeature = self.processor.apply_chat_template(  # type: ignore[reportAssignmentType]
             convs, padding=True, return_tensors="pt", return_dict=True, tokenize=True
         )
 

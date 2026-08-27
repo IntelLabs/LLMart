@@ -45,7 +45,7 @@ def attack(suffix=6, n_swaps=1024, n_tokens=1, num_steps=1000, per_device_bs=64)
         tokenizer=tokenizer,
         trust_remote_code=True,
         device_map="cuda:1",
-        torch_dtype="bfloat16",
+        dtype="bfloat16",
         max_new_tokens=1,
         model_kwargs=dict(),
     )

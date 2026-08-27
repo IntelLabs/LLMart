@@ -52,7 +52,7 @@ def attack(
         tokenizer=tokenizer,
         trust_remote_code=True,
         device_map="cuda:1",
-        torch_dtype="bfloat16",
+        dtype="bfloat16",
         max_new_tokens=1,
         model_kwargs=dict(),
     )

@@ -52,6 +52,8 @@ class AdvImageProcessor(torch.nn.Module):
 class AdversarialImageTextToLossPipeline(ImageTextToTextPipeline):
     """A customized pipeline for adversary to get the model loss instead of generating responses."""
 
+    framework = "pt"
+
     def _init_image_attack(self, image_attack):
         """Preparation for image attack."""
 

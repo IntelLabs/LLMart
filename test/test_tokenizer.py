@@ -312,7 +312,7 @@ def test_tokenizer_tag_chat_prompt_like_suffix(tok, tag_tok, prefix, suffix):
     # convert prompt tokens into list of individual stripped tokens since
     # we need to find the PROMPT token
     prompt_tokens = [
-        tok.strip() for tok in tag_tok.batch_decode(tag_inputs["input_ids"][0])
+        tag_tok.decode(token_id).strip() for token_id in tag_inputs["input_ids"][0]
     ]
     # suffix mask should come after PROMPT (and not before!!)
     prompt_loc = prompt_tokens.index(PROMPT)
@@ -356,7 +356,9 @@ def test_tokenizer_tag_chat_open(tag_tok, prefix, suffix):
     ],
 )
 def test_tokenizer_reencodes(tag_tok, conv):
-    input_ids: torch.Tensor = tag_tok.apply_chat_template(conv, return_tensors="pt")  # type: ignore
+    input_ids: torch.Tensor = tag_tok.apply_chat_template(  # type: ignore
+        conv, return_tensors="pt"
+    )["input_ids"]
     assert tag_tok.reencodes(input_ids)
 
 
@@ -367,7 +369,7 @@ def test_tokenizer_chat_template(tok):
             dict(role="user", content="prompt"),
         ],
         add_generation_prompt=True,
-    )
+    )["input_ids"]
 
     empty_assistant_ids = tok.apply_chat_template(
         [
@@ -375,7 +377,7 @@ def test_tokenizer_chat_template(tok):
             dict(role="assistant", content=""),
         ],
         add_generation_prompt=False,
-    )
+    )["input_ids"]
 
     completion_ids = tok.apply_chat_template(
         [
@@ -383,7 +385,7 @@ def test_tokenizer_chat_template(tok):
             dict(role="assistant", content="completion"),
         ],
         add_generation_prompt=False,
-    )
+    )["input_ids"]
 
     assert prompt_ids[-1] != tok.eos_token_id
     assert empty_assistant_ids[-1] == tok.eos_token_id

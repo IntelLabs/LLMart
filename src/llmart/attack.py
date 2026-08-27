@@ -134,7 +134,7 @@ def run_attack(cfg: config.LLMartConf) -> dict:
         device=cfg.model.device,
         device_map=cfg.model.device_map,
         trust_remote_code=True,
-        torch_dtype=cfg.model.torch_dtype,
+        dtype=cfg.model.torch_dtype,
         tokenizer=tokenizer,
         processor=processor,
         model_kwargs=dict(),
@@ -678,7 +678,6 @@ def evaluate(
             max_new_tokens=max(max_new_tokens, response_mask.shape[1] - prompt_end),
             return_dict_in_generate=True,
             output_logits=True,
-            return_legacy_cache=False,
         )
 
         # Decode continuation of prompt

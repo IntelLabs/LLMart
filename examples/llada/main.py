@@ -40,7 +40,7 @@ def attack(
     model = AutoModel.from_pretrained(
         "GSAI-ML/LLaDA-8B-Instruct",
         revision="9275bf8f5a5687507189baf4657e91c51b2be338",
-        torch_dtype="bfloat16",
+        dtype="bfloat16",
         device_map="auto",
         trust_remote_code=True,
     )

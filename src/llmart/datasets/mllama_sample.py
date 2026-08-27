@@ -5,6 +5,7 @@
 #
 
 import torch
+from transformers import BatchFeature
 
 from llmart import DataMapper
 from .basic import BasicBuilder
@@ -48,8 +49,12 @@ class MllamaSampleMapper(DataMapper):
         ]
 
         # Turn conversation into inputs_ids and masks
-        inputs = self.processor.apply_chat_template(  # type: ignore[reportCallIssue]
-            convs, padding=True, return_tensors="pt", return_dict=True, tokenize=True
+        inputs: BatchFeature = self.processor.apply_chat_template(  # type: ignore[reportAssignmentType]
+            convs,  # type: ignore[reportArgumentType]
+            padding=True,
+            return_tensors="pt",
+            return_dict=True,
+            tokenize=True,
         )
 
         # Add batch axis to tensor values (e.g., pixel_values)

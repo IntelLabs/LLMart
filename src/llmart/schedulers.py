@@ -22,6 +22,12 @@ from .optim import GreedyCoordinateGradient
 from .config import SchedulerConf
 
 
+def _round_to_int(value: int | float | torch.Tensor) -> int:
+    if isinstance(value, torch.Tensor):
+        value = value.item()
+    return round(value)
+
+
 class GCGScheduler(LRScheduler):
     """Base scheduler class for Greedy Coordinate Gradient optimizer.
 
@@ -43,7 +49,7 @@ class GCGScheduler(LRScheduler):
             copy.deepcopy(param_group[self.var_name])
             for param_group in optimizer.param_groups
         ]
-        self.last_values = self.base_lrs
+        self.last_values = [_round_to_int(value) for value in self.base_lrs]
         self.last_epoch = 0
 
         # Get dummy optimizer and tensor
@@ -65,7 +71,7 @@ class GCGScheduler(LRScheduler):
     def get_new_values(self) -> list[int]:
         self._reference_scheduler.last_epoch += 1
         new_values = self._reference_scheduler._get_closed_form_lr()
-        return [max(round(new_value), 1) for new_value in new_values]
+        return [max(_round_to_int(new_value), 1) for new_value in new_values]
 
     def get_last_lr(self) -> list[int] | list[float]:  # type: ignore[override]
         return self.last_values
@@ -103,7 +109,7 @@ class LambdaInteger(GCGScheduler):
 
     def get_new_values(self) -> list[int]:
         new_values = [
-            max(round(base_lr * self.lr_lambda(self.last_epoch)), 1)
+            max(_round_to_int(base_lr * self.lr_lambda(self.last_epoch)), 1)
             for base_lr in self.base_lrs
         ]
 
@@ -149,7 +155,7 @@ class ConstantInteger(GCGScheduler):
             self._reference_scheduler.last_epoch += 1
             new_values = self._reference_scheduler._get_closed_form_lr()
 
-        return [max(round(new_value), 1) for new_value in new_values]
+        return [max(_round_to_int(new_value), 1) for new_value in new_values]
 
 
 class LinearInteger(GCGScheduler):
@@ -317,7 +323,7 @@ class ChangeOnPlateauInteger(GCGScheduler):
         new_values = [last_value * self.factor for last_value in self.last_values]
 
         return [
-            min(max(round(new_value), self.min_value), self.max_value)
+            min(max(_round_to_int(new_value), self.min_value), self.max_value)
             for new_value in new_values
         ]
 

@@ -7,14 +7,17 @@
 import torch
 import inspect
 import itertools
+import importlib.util
+from pathlib import Path
+from types import ModuleType
 from typing import Any
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from importlib import import_module
 from collections.abc import Generator, MutableMapping
 from accelerate.utils import gather, pad_across_processes
-from datasets import load_dataset, Dataset, DatasetDict
-from datasets.load import LocalDatasetModuleFactoryWithScript
+from datasets import load_dataset, Dataset, DatasetBuilder, DatasetDict
+from datasets.fingerprint import Hasher
 from transformers.processing_utils import ProcessorMixin
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase, BatchEncoding
 
@@ -90,6 +93,35 @@ def gather_batch_across_processes(
     return global_inputs
 
 
+def _import_local_module(path: str) -> ModuleType | None:
+    """Imports llmart.datasets.{path} if it exists, else path if it is a Python file."""
+    try:
+        return import_module(f".datasets.{path}", __package__)
+    except ModuleNotFoundError:
+        pass
+
+    if not (path.endswith(".py") and Path(path).is_file()):
+        return None
+    spec = importlib.util.spec_from_file_location(Path(path).stem, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _find_class(module: ModuleType, base: type) -> type | None:
+    """Finds a concrete subclass of base that is defined in module."""
+    for cls in module.__dict__.values():
+        if (
+            inspect.isclass(cls)
+            and issubclass(cls, base)
+            and not inspect.isabstract(cls)
+            and cls.__module__ == module.__name__
+        ):
+            return cls
+    return None
+
+
 class DataMapper(ABC):
     """
     Abstract base class for mapping raw dataset batches into model-ready input formats.
@@ -108,8 +140,8 @@ class DataMapper(ABC):
     Methods:
         __call__(batch: dict[str, Any]) -> dict[str, Any]:
             Abstract method to map a batch of raw data to model inputs.
-        load_data_mapper(path, trust_remote_code=False, **kwargs) -> "DataMapper":
-            Loads a DataMapper subclass from a given path, supporting dynamic import and remote code if needed.
+        load_data_mapper(path, **kwargs) -> "DataMapper":
+            Loads a DataMapper subclass from a llmart.datasets module name or a Python file path.
     """
 
     def __init__(
@@ -129,24 +161,12 @@ class DataMapper(ABC):
         raise NotImplementedError
 
     @staticmethod
-    def load_data_mapper(
-        path, trust_remote_code: bool = False, **kwargs
-    ) -> "DataMapper":
-        # Re-use dataset module factory to load mapper
-        mapper_module = LocalDatasetModuleFactoryWithScript(
-            path, trust_remote_code=trust_remote_code
-        )
-        module = import_module(mapper_module.get_module().module_path)
-        for cls in module.__dict__.values():
-            # Find classes that subclass DataMapper, are not abstract, and are in the path
-            if (
-                inspect.isclass(cls)
-                and issubclass(cls, DataMapper)
-                and not inspect.isabstract(cls)
-                and inspect.getmodule(cls) == module
-            ):
-                return cls(**kwargs)
-        raise ValueError(f"Unable to find DataMapper in {path}!")
+    def load_data_mapper(path, **kwargs) -> "DataMapper":
+        module = _import_local_module(path)
+        cls = _find_class(module, DataMapper) if module is not None else None
+        if cls is None:
+            raise ValueError(f"Unable to find DataMapper in {path}!")
+        return cls(**kwargs)
 
 
 class ConversationMapper(DataMapper):
@@ -204,21 +224,24 @@ def from_config(
         NotImplementedError: If dataset has predefined val/test splits.
     """
 
-    try:
-        local_dataset = import_module(f".datasets.{cfg.path}", __package__)
-        if local_dataset.__file__ is not None:
-            cfg.path = local_dataset.__file__
-    except ModuleNotFoundError:
-        pass  # ignore issues importing local dataset and let load_dataset raise them
+    # Load dataset from a local builder, if any, otherwise defer to load_dataset
+    module = _import_local_module(cfg.path)
+    builder_cls = _find_class(module, DatasetBuilder) if module is not None else None
+    if builder_cls is not None:
+        assert module is not None and module.__file__ is not None
+        builder = builder_cls(
+            config_name=cfg.name,
+            data_files=cfg.files,
+            hash=Hasher.hash(Path(module.__file__).read_text()),
+        )
+        builder.download_and_prepare()
+        dd = builder.as_dataset(split=cfg.split)
+    else:
+        dd = load_dataset(
+            cfg.path, name=cfg.name, split=cfg.split, data_files=cfg.files
+        )
 
-    # Load dataset and ensure we have a DatasetDict
-    dd = load_dataset(
-        cfg.path,
-        name=cfg.name,
-        split=cfg.split,
-        data_files=cfg.files,
-        trust_remote_code=cfg.trust_remote_code,
-    )
+    # Ensure we have a DatasetDict
     if isinstance(dd, Dataset):
         dd = DatasetDict(train=dd)
     if not isinstance(dd, DatasetDict):
@@ -228,18 +251,7 @@ def from_config(
 
     # Map dataset into input_ids, attention_mask, etc.
     if cfg.mapper is not None:
-        try:
-            local_dataset = import_module(f".datasets.{cfg.mapper}", __package__)
-            if local_dataset.__file__ is not None:
-                cfg.mapper = local_dataset.__file__
-        except ModuleNotFoundError:
-            pass  # ignore issues importing local mapper and let load_data_mapper raise them
-
-        mapper = DataMapper.load_data_mapper(
-            cfg.mapper,
-            **mapper_kwargs,
-            trust_remote_code=cfg.trust_remote_code,
-        )
+        mapper = DataMapper.load_data_mapper(cfg.mapper, **mapper_kwargs)
         dd = dd.map(
             mapper,
             batched=True,

@@ -5,6 +5,7 @@
 #
 
 import torch
+from datasets.builder import Key
 from transformers import BatchFeature
 
 from llmart import DataMapper
@@ -14,7 +15,7 @@ from .basic import BasicBuilder
 class MllamaSampleBuilder(BasicBuilder):
     def _generate_examples(self, **kwargs):
         yield (
-            0,
+            Key(0, 0),
             {
                 "image": "https://llava-vl.github.io/static/images/view.jpg",
                 "question": "What does the image show?",

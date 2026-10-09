@@ -5,6 +5,7 @@
 #
 
 import torch
+from datasets.builder import Key
 from transformers import BatchFeature
 
 from llmart import DataMapper
@@ -42,7 +43,7 @@ finished(content='xxx') # Use escape characters \\', \\", and \\n in content par
 class UITARSSampleBuilder(BasicBuilder):
     def _generate_examples(self, **kwargs):
         yield (
-            0,
+            Key(0, 0),
             {
                 "screenshot": "https://raw.githubusercontent.com/bytedance/UI-TARS/a67d3d8cae28923d0159f83d400d310c90815b71/data/coordinate_process_image.png",
                 "instruction": "What is the current weather in Portland, OR?",

@@ -139,7 +139,6 @@ class DataConf:
     name: str | None = None
     split: str | None = None
     files: str | None = None
-    trust_remote_code: bool = True
 
     mapper: str | None = None
     shuffle: bool = False

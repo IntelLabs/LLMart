@@ -20,7 +20,7 @@ uv run --with-requirements requirements.txt claim.py
 ```
 
 > [!NOTE]
-> Because the scripts will verify the optimized suffix using the reference `vllm` pipeline, these examples require at least two GPUs (or a single GPU with at least 80 GB of VRAM).
+> The optimized inputs are verified with a HuggingFace re-implementation of MiniCheck's `Bespoke-MiniCheck-7B` scoring that reuses the attacked model, so no `vllm` installation or second GPU is needed.
 
 In both cases, the goal is to adversarially make a claim unrelated to the document to be evaluated as factual and in-context for the document.
 

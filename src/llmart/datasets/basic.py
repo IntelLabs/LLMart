@@ -6,6 +6,7 @@
 
 import torch
 import datasets
+from datasets.builder import Key
 from transformers.tokenization_utils_base import BatchEncoding
 
 from llmart import DataMapper
@@ -22,7 +23,7 @@ class BasicBuilder(datasets.GeneratorBasedBuilder):
         example = dict(
             prompt="Tell me about the planet Saturn.", completion="NO WAY JOSE"
         )
-        yield 0, example
+        yield Key(0, 0), example
 
 
 class BasicMapper(DataMapper):
